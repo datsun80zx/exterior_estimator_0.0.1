@@ -1,0 +1,32 @@
+{{define "layout.html"}}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{block "title" .}}Hinkley Estimator{{end}}</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+    <nav class="nav">
+        <div class="nav-brand">
+            <a href="/">Estimator</a>
+        </div>
+        <div class="nav-links">
+            <a href="/roofing">Roofing</a>
+            <a href="#" class="disabled">Siding</a>
+            <a href="#" class="disabled">Gutters</a>
+            <span class="nav-sep">|</span>
+            <a href="/admin/materials">Materials & Pricing</a>
+        </div>
+    </nav>
+    <main class="container">
+        {{block "content" .}}{{end}}
+    </main>
+</body>
+
+</html>
+{{end}}

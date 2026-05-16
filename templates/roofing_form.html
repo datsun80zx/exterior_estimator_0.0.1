@@ -1,0 +1,204 @@
+{{define "title"}}Roofing Estimate{{end}}
+{{define "content"}}
+<div class="estimate-form">
+    <h1>Roofing Estimate</h1>
+
+    <form action="/roofing/calculate" method="POST" hx-post="/roofing/calculate" hx-target="#results"
+        hx-swap="innerHTML">
+
+        {{/* ---- CUSTOMER INFO ---- */}}
+        <fieldset>
+            <legend>Customer Information</legend>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="customer_name">Name</label>
+                    <input type="text" id="customer_name" name="customer_name" required>
+                </div>
+                <div class="form-group">
+                    <label for="customer_phone">Phone</label>
+                    <input type="tel" id="customer_phone" name="customer_phone">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group wide">
+                    <label for="customer_address">Address</label>
+                    <input type="text" id="customer_address" name="customer_address" required>
+                </div>
+                <div class="form-group">
+                    <label for="customer_email">Email</label>
+                    <input type="email" id="customer_email" name="customer_email">
+                </div>
+            </div>
+        </fieldset>
+
+        {{/* ---- MEASUREMENTS ---- */}}
+        <fieldset>
+            <legend>Roof Measurements</legend>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="total_area_sqft">Total Roof Area (sq ft)</label>
+                    <input type="number" id="total_area_sqft" name="total_area_sqft" step="1" min="0" required
+                        placeholder="e.g. 2400">
+                </div>
+                <div class="form-group">
+                    <label for="pitch">Pitch</label>
+                    <select id="pitch" name="pitch" required>
+                        {{range pitches}}
+                        <option value="{{.}}" {{if eq . "6/12" }}selected{{end}}>{{.}}</option>
+                        {{end}}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="waste_factor_pct">Waste Factor %</label>
+                    <select id="waste_factor_pct" name="waste_factor_pct">
+                        <option value="10">10% (simple)</option>
+                        <option value="12">12%</option>
+                        <option value="15" selected>15% (standard)</option>
+                        <option value="18">18%</option>
+                        <option value="20">20% (complex/cut-up)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="eave_length_ft">Eave Length (LF)</label>
+                    <input type="number" id="eave_length_ft" name="eave_length_ft" step="0.5" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label for="rake_length_ft">Rake Length (LF)</label>
+                    <input type="number" id="rake_length_ft" name="rake_length_ft" step="0.5" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label for="ridge_length_ft">Ridge Length (LF)</label>
+                    <input type="number" id="ridge_length_ft" name="ridge_length_ft" step="0.5" min="0" value="0">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="hip_length_ft">Hip Length (LF)</label>
+                    <input type="number" id="hip_length_ft" name="hip_length_ft" step="0.5" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label for="valley_length_ft">Valley Length (LF)</label>
+                    <input type="number" id="valley_length_ft" name="valley_length_ft" step="0.5" min="0" value="0">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="num_pipe_boots">Pipe Boots</label>
+                    <input type="number" id="num_pipe_boots" name="num_pipe_boots" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label for="num_exhaust_vents">Exhaust Vents</label>
+                    <input type="number" id="num_exhaust_vents" name="num_exhaust_vents" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label for="layers_to_remove">Layers to Tear Off</label>
+                    <select id="layers_to_remove" name="layers_to_remove">
+                        <option value="0">None (overlay)</option>
+                        <option value="1" selected>1 layer</option>
+                        <option value="2">2 layers</option>
+                    </select>
+                </div>
+            </div>
+        </fieldset>
+
+        {{/* ---- MATERIAL SELECTIONS ---- */}}
+        <fieldset>
+            <legend>Material Selections</legend>
+
+            {{/* Shingle brand → product cascade */}}
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="shingle_brand">Shingle Brand</label>
+                    <select id="shingle_brand" name="shingle_brand" hx-get="/htmx/shingles-by-brand"
+                        hx-target="#shingle_material_id" hx-include="[name='shingle_brand']" hx-trigger="change"
+                        hx-swap="innerHTML" hx-vals='js:{"brand": document.getElementById("shingle_brand").value}'>
+                        <option value="">-- Select Brand --</option>
+                        {{range .Brands}}
+                        <option value="{{.}}">{{.}}</option>
+                        {{end}}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="shingle_material_id">Shingle Product</label>
+                    <select id="shingle_material_id" name="shingle_material_id">
+                        <option value="">-- Select Brand First --</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="underlayment_material_id">Underlayment</label>
+                    <select id="underlayment_material_id" name="underlayment_material_id">
+                        <option value="">-- None --</option>
+                        {{range .Underlayments}}
+                        <option value="{{.ID}}">{{.Brand}} {{.Name}} ({{.CoveragePerUnit}} sqft/{{.Unit}})</option>
+                        {{end}}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="ice_water_material_id">Ice & Water Shield</label>
+                    <select id="ice_water_material_id" name="ice_water_material_id">
+                        <option value="">-- None --</option>
+                        {{range .IceWater}}
+                        <option value="{{.ID}}">{{.Brand}} {{.Name}}</option>
+                        {{end}}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="drip_edge_material_id">Drip Edge</label>
+                    <select id="drip_edge_material_id" name="drip_edge_material_id">
+                        <option value="">-- None --</option>
+                        {{range .DripEdge}}
+                        <option value="{{.ID}}">{{.Name}}</option>
+                        {{end}}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="ridge_cap_material_id">Ridge Cap / Hip & Ridge</label>
+                    <select id="ridge_cap_material_id" name="ridge_cap_material_id">
+                        <option value="">-- None --</option>
+                        {{range .RidgeCap}}
+                        <option value="{{.ID}}">{{.Brand}} {{.Name}} ({{.CoveragePerUnit}} LF/{{.Unit}})</option>
+                        {{end}}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="starter_material_id">Starter Strip</label>
+                    <select id="starter_material_id" name="starter_material_id">
+                        <option value="">-- None --</option>
+                        {{range .Starter}}
+                        <option value="{{.ID}}">{{.Brand}} {{.Name}} ({{.CoveragePerUnit}} LF/{{.Unit}})</option>
+                        {{end}}
+                    </select>
+                </div>
+            </div>
+        </fieldset>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Calculate Estimate</button>
+            <button type="reset" class="btn btn-secondary">Clear</button>
+        </div>
+    </form>
+
+    <div id="results"></div>
+</div>
+
+<script>
+    // Fix the HTMX brand selector to pass query param correctly
+    document.getElementById('shingle_brand').addEventListener('htmx:configRequest', function (e) {
+        e.detail.path = '/htmx/shingles-by-brand?brand=' + encodeURIComponent(this.value);
+    });
+</script>
+{{end}}

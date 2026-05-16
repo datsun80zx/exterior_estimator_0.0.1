@@ -1,0 +1,94 @@
+{{define "estimate_result.html"}}
+<div class="result-panel">
+    <div class="result-header">
+        <h2>Estimate Results</h2>
+        <div class="result-meta">
+            <span>{{.Result.CustomerName}}</span>
+            <span>{{.Result.CustomerAddress}}</span>
+            <span>{{.Result.TotalSquares}} squares | {{.Result.Pitch}} pitch | {{.Result.WasteFactorPct}}% waste</span>
+        </div>
+    </div>
+
+    {{/* ---- INTERNAL MATERIAL LIST ---- */}}
+    <div class="section">
+        <h3>Material List <span class="badge internal">Internal</span></h3>
+        <table class="material-table">
+            <thead>
+                <tr>
+                    <th>Material</th>
+                    <th>Brand</th>
+                    <th class="num">Qty</th>
+                    <th>Unit</th>
+                    <th class="num">Cost/ea</th>
+                    <th class="num">Cost Total</th>
+                    <th class="num">Price/ea</th>
+                    <th class="num">Price Total</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Result.Materials}}
+                <tr>
+                    <td>{{.MaterialName}}</td>
+                    <td>{{.Brand}}</td>
+                    <td class="num">{{.Quantity}}</td>
+                    <td>{{.Unit}}</td>
+                    <td class="num">{{currency .CostEach}}</td>
+                    <td class="num">{{currency .CostTotal}}</td>
+                    <td class="num">{{currency .PriceEach}}</td>
+                    <td class="num">{{currency .PriceTotal}}</td>
+                    <td class="notes">{{.Notes}}</td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+
+    {{/* ---- FINANCIALS ---- */}}
+    <div class="section">
+        <h3>Project Financials <span class="badge internal">Internal</span></h3>
+        <div class="financials-grid">
+            <div class="fin-item">
+                <span class="fin-label">Material Cost</span>
+                <span class="fin-value">{{currency .Result.TotalMaterialCost}}</span>
+            </div>
+            <div class="fin-item">
+                <span class="fin-label">Labor</span>
+                <span class="fin-value">{{currency .Result.LaborCost}}</span>
+            </div>
+            {{if gt .Result.TearOffCost 0.0}}
+            <div class="fin-item">
+                <span class="fin-label">Tear-Off</span>
+                <span class="fin-value">{{currency .Result.TearOffCost}}</span>
+            </div>
+            {{end}}
+            <div class="fin-item fin-total">
+                <span class="fin-label">Total Cost</span>
+                <span class="fin-value">{{currency .Result.TotalProjectCost}}</span>
+            </div>
+            <div class="fin-item">
+                <span class="fin-label">Material Price (sell)</span>
+                <span class="fin-value">{{currency .Result.TotalMaterialPrice}}</span>
+            </div>
+            <div class="fin-item fin-total">
+                <span class="fin-label">Total Price</span>
+                <span class="fin-value">{{currency .Result.TotalProjectPrice}}</span>
+            </div>
+            <div class="fin-item fin-profit">
+                <span class="fin-label">Profit</span>
+                <span class="fin-value">{{currency .Result.Profit}} ({{.Result.MarginPct}}%)</span>
+            </div>
+        </div>
+    </div>
+
+    {{/* ---- ACTIONS ---- */}}
+    <div class="result-actions">
+        {{if .EstimateID}}
+        <a href="/roofing/proposal/{{.EstimateID}}" target="_blank" class="btn btn-primary">
+            View Customer Proposal →
+        </a>
+        {{end}}
+        <button onclick="window.print()" class="btn btn-secondary">Print Material List</button>
+    </div>
+</div>
+{{end}}

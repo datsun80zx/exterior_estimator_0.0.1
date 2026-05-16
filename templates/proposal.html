@@ -1,0 +1,377 @@
+{{define "proposal.html"}}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proposal — {{.Result.CustomerName}}</title>
+    <style>
+        @page {
+            margin: 0.75in;
+            size: letter;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #1a1a2e;
+            line-height: 1.5;
+            background: #fff;
+        }
+
+        .proposal {
+            max-width: 8.5in;
+            margin: 0 auto;
+            padding: 40px;
+        }
+
+        /* --- Header --- */
+        .proposal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 3px solid #1a1a2e;
+            padding-bottom: 24px;
+            margin-bottom: 32px;
+        }
+
+        .company-info h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a1a2e;
+            letter-spacing: -0.5px;
+        }
+
+        .company-info p {
+            font-size: 13px;
+            color: #555;
+            margin-top: 4px;
+        }
+
+        .proposal-label {
+            text-align: right;
+        }
+
+        .proposal-label h2 {
+            font-size: 22px;
+            font-weight: 300;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: #1a1a2e;
+        }
+
+        .proposal-label .date {
+            font-size: 13px;
+            color: #777;
+            margin-top: 4px;
+        }
+
+        /* --- Customer Block --- */
+        .customer-block {
+            background: #f8f9fa;
+            border-left: 4px solid #1a1a2e;
+            padding: 20px 24px;
+            margin-bottom: 32px;
+        }
+
+        .customer-block h3 {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #888;
+            margin-bottom: 8px;
+        }
+
+        .customer-block .name {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .customer-block .detail {
+            font-size: 14px;
+            color: #444;
+        }
+
+        /* --- Scope Section --- */
+        .scope {
+            margin-bottom: 32px;
+        }
+
+        .scope h3 {
+            font-size: 16px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 8px;
+            margin-bottom: 16px;
+        }
+
+        .scope-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 32px;
+            font-size: 14px;
+        }
+
+        .scope-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+        }
+
+        .scope-item .label {
+            color: #666;
+        }
+
+        .scope-item .value {
+            font-weight: 600;
+        }
+
+        /* --- Materials (customer view - no costs) --- */
+        .materials {
+            margin-bottom: 32px;
+        }
+
+        .materials h3 {
+            font-size: 16px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 8px;
+            margin-bottom: 16px;
+        }
+
+        .materials-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .materials-table th {
+            text-align: left;
+            padding: 8px 12px;
+            background: #f0f0f0;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .materials-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .materials-table .num {
+            text-align: right;
+        }
+
+        /* --- Pricing --- */
+        .pricing {
+            margin-bottom: 40px;
+        }
+
+        .pricing h3 {
+            font-size: 16px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 8px;
+            margin-bottom: 16px;
+        }
+
+        .price-total {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #1a1a2e;
+            color: #fff;
+            padding: 20px 24px;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .price-total .label {
+            font-weight: 300;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        /* --- Footer --- */
+        .proposal-footer {
+            margin-top: 48px;
+            padding-top: 24px;
+            border-top: 1px solid #ddd;
+        }
+
+        .signatures {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 48px;
+            margin-top: 40px;
+        }
+
+        .sig-line {
+            border-top: 1px solid #333;
+            padding-top: 8px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .terms {
+            font-size: 11px;
+            color: #888;
+            margin-top: 32px;
+            line-height: 1.6;
+        }
+
+        .terms h4 {
+            font-size: 12px;
+            color: #555;
+            margin-bottom: 8px;
+        }
+
+        /* --- Print --- */
+        @media print {
+            body {
+                background: #fff;
+            }
+
+            .proposal {
+                padding: 0;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+        }
+
+        .print-bar {
+            background: #1a1a2e;
+            color: #fff;
+            padding: 12px 40px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .print-bar button {
+            background: #fff;
+            color: #1a1a2e;
+            border: none;
+            padding: 8px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-left: 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="print-bar no-print">
+        Print this page or save as PDF:
+        <button onclick="window.print()">Print / Save PDF</button>
+    </div>
+
+    <div class="proposal">
+        <div class="proposal-header">
+            <div class="company-info">
+                {{/* TODO: Make company name/info configurable */}}
+                <h1>Hinkley Roofing</h1>
+                <p>Northeast Ohio · Licensed & Insured</p>
+            </div>
+            <div class="proposal-label">
+                <h2>Proposal</h2>
+                <div class="date">{{.Result.CreatedAt.Format "January 2, 2006"}}</div>
+            </div>
+        </div>
+
+        <div class="customer-block">
+            <h3>Prepared For</h3>
+            <div class="name">{{.Result.CustomerName}}</div>
+            {{if .Result.CustomerAddress}}<div class="detail">{{.Result.CustomerAddress}}</div>{{end}}
+            {{if .Result.CustomerPhone}}<div class="detail">{{.Result.CustomerPhone}}</div>{{end}}
+            {{if .Result.CustomerEmail}}<div class="detail">{{.Result.CustomerEmail}}</div>{{end}}
+        </div>
+
+        <div class="scope">
+            <h3>Scope of Work — {{.Result.ProjectType}}</h3>
+            <div class="scope-details">
+                <div class="scope-item">
+                    <span class="label">Roof Area</span>
+                    <span class="value">{{.Result.TotalSquares}} squares</span>
+                </div>
+                <div class="scope-item">
+                    <span class="label">Pitch</span>
+                    <span class="value">{{.Result.Pitch}}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="materials">
+            <h3>Materials</h3>
+            <table class="materials-table">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Brand</th>
+                        <th class="num">Quantity</th>
+                        <th>Unit</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .Result.Materials}}
+                    <tr>
+                        <td>{{.MaterialName}}</td>
+                        <td>{{.Brand}}</td>
+                        <td class="num">{{.Quantity}}</td>
+                        <td>{{.Unit}}</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pricing">
+            <h3>Investment</h3>
+            <div class="price-total">
+                <span class="label">Total Project Price</span>
+                <span>{{currency .Result.TotalProjectPrice}}</span>
+            </div>
+        </div>
+
+        <div class="proposal-footer">
+            <div class="signatures">
+                <div>
+                    <div class="sig-line">Homeowner Signature / Date</div>
+                </div>
+                <div>
+                    <div class="sig-line">Company Representative / Date</div>
+                </div>
+            </div>
+
+            <div class="terms">
+                <h4>Terms & Conditions</h4>
+                <p>
+                    This proposal is valid for 30 days from the date above.
+                    A signed proposal serves as authorization to proceed.
+                    Payment terms: deposit due upon signing, balance due upon completion.
+                    All work performed per manufacturer specifications.
+                    Warranty: manufacturer warranty on materials; workmanship warranty per company policy.
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
+{{end}}

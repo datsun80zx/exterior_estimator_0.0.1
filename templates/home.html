@@ -1,0 +1,31 @@
+{{define "title"}}Estimator — Home{{end}}
+{{define "content"}}
+<div class="home">
+    <h1>Project Estimator</h1>
+    <p class="subtitle">Generate material lists and customer proposals</p>
+
+    <div class="card-grid">
+        <a href="/roofing" class="card card-link">
+            <div class="card-icon">⛊</div>
+            <h2>Roofing</h2>
+            <p>Shingles, underlayment, ice & water, drip edge, ridge cap, starter, and accessories</p>
+        </a>
+
+        <div class="card card-disabled">
+            <div class="card-icon">▧</div>
+            <h2>Siding</h2>
+            <p>Coming soon — vinyl, fiber cement, board & batten</p>
+        </div>
+
+        <div class="card card-disabled">
+            <div class="card-icon">⌐</div>
+            <h2>Gutters</h2>
+            <p>Coming soon — seamless aluminum, copper, downspouts</p>
+        </div>
+    </div>
+
+    <div class="quick-links">
+        <a href="/admin/materials">Manage Materials & Pricing →</a>
+    </div>
+</div>
+{{end}}
