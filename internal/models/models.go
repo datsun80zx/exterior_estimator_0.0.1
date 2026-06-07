@@ -109,6 +109,7 @@ type EstimateResult struct {
 type LaborRate struct {
 	ID          int64            `json:"id"`
 	Category    MaterialCategory `json:"category"`
+	RateType    string           `json:"rate_type"` //"instal", tearoff, etc"
 	Description string           `json:"description"`
 	RatePerSq   float64          `json:"rate_per_sq"`   // per square for roofing
 	RatePerLF   float64          `json:"rate_per_lf"`   // per linear foot for gutters

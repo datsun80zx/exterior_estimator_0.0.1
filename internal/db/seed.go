@@ -64,7 +64,7 @@ func (s *Store) seed() error {
 		// =============================================
 		// OC hip & ridge covers ~31.7 linear ft per bundle
 		{"roofing", "Owens Corning", "DecoRidge", "DecoRidge Hip & Ridge", "bundle", 20, 0, 0},
-		{"roofing", "Owens Corning", "", "Duration Hip & Ridge", "bundle", 31.7, 0, 0},
+		{"roofing", "Owens Corning", "", "ProEdge Hip & Ridge", "bundle", 31, 0, 0},
 		{"roofing", "GAF", "TimberTex", "TimberTex Hip & Ridge", "bundle", 20, 0, 0},
 		{"roofing", "GAF", "Seal-A-Ridge", "Seal-A-Ridge Hip & Ridge", "bundle", 25, 0, 0},
 		{"roofing", "CertainTeed", "", "Shadow Ridge Hip & Ridge", "bundle", 31.7, 0, 0},
@@ -73,7 +73,7 @@ func (s *Store) seed() error {
 		// STARTER STRIP
 		// =============================================
 		// Starter strip ~ 105 linear ft per bundle (varies)
-		{"roofing", "Owens Corning", "", "Starter Strip Shingles", "bundle", 105, 0, 0},
+		{"roofing", "Owens Corning", "Starter Strip Plus", "Starter Strip Shingles", "bundle", 105, 0, 0},
 		{"roofing", "GAF", "Pro-Start", "Pro-Start Starter Strip", "bundle", 120, 0, 0},
 		{"roofing", "CertainTeed", "", "SwiftStart Starter Shingles", "bundle", 117, 0, 0},
 
@@ -84,11 +84,12 @@ func (s *Store) seed() error {
 		{"roofing", "Generic", "", "Pipe Boot - 3\" to 4\"", "piece", 1, 0, 0},
 		{"roofing", "Generic", "", "Exhaust Vent (box vent)", "piece", 1, 0, 0},
 		{"roofing", "Owens Corning", "", "VentSure Ridge Vent (4ft)", "piece", 4, 0, 0},
+		{"roofing", "Owens Corning", "Ridge Prowler 30", "Ridge Prowler", "roll", 30, 0, 0},
 
 		// =============================================
-		// NAILS & MISC
+		// NAILS & MISC 1 box of nails covers 15 SQ
 		// =============================================
-		{"roofing", "Generic", "", "1-1/4\" Coil Roofing Nails", "box", 7200, 0, 0},
+		{"roofing", "Generic", "", "1-1/4\" Coil Roofing Nails", "box", 15, 0, 0},
 		{"roofing", "Generic", "", "Roofing Caulk / Sealant", "tube", 1, 0, 0},
 
 		// =============================================
@@ -124,8 +125,8 @@ func (s *Store) seed() error {
 		category, description             string
 		ratePerSq, ratePerLF, ratePerSqFt float64
 	}{
-		{"roofing", "Standard shingle install", 75, 0, 0}, // $75/square labor
-		{"roofing", "Tear-off (per layer per square)", 50, 0, 0},
+		{"roofing", "install", 300, 0, 0}, // $300/square labor
+		{"roofing", "Tear-off (per layer per square)", 90, 0, 0},
 		{"gutters", "Standard gutter install", 0, 6, 0},   // $6/LF
 		{"siding", "Standard siding install", 0, 0, 3.50}, // $3.50/sqft
 	}

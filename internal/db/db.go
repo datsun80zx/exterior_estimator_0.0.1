@@ -51,11 +51,13 @@ func (s *Store) migrate() error {
 		`CREATE TABLE IF NOT EXISTS labor_rates (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			category TEXT NOT NULL CHECK(category IN ('roofing', 'siding', 'gutters')),
+			rate_type TEXT NOT NULL DEFAULT 'install',
 			description TEXT NOT NULL,
 			rate_per_sq REAL NOT NULL DEFAULT 0,
 			rate_per_lf REAL NOT NULL DEFAULT 0,
 			rate_per_sqft REAL NOT NULL DEFAULT 0,
-			is_active INTEGER NOT NULL DEFAULT 1
+			is_active INTEGER NOT NULL DEFAULT 1,
+			UNIQUE(category, rate_type)
 		)`,
 		`CREATE TABLE IF NOT EXISTS saved_estimates (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -219,15 +221,15 @@ func (s *Store) GetShinglesByBrand(brand string) ([]models.Material, error) {
 
 // --- Labor Rates ---
 
-func (s *Store) GetLaborRate(category models.MaterialCategory) (models.LaborRate, error) {
+func (s *Store) GetLaborRate(category models.MaterialCategory, rateType string) (models.LaborRate, error) {
 	var lr models.LaborRate
 	err := s.DB.QueryRow(`
-		SELECT id, category, description, rate_per_sq, rate_per_lf, rate_per_sqft
-		FROM labor_rates WHERE category = ? AND is_active = 1
-	`, string(category)).Scan(&lr.ID, &lr.Category, &lr.Description,
+		SELECT id, category, rate_type, description, rate_per_sq, rate_per_lf, rate_per_sqft
+		FROM labor_rates WHERE category = ? AND rate_type = ? AND is_active = 1
+	`, string(category), rateType).Scan(&lr.ID, &lr.Category, &lr.RateType, &lr.Description,
 		&lr.RatePerSq, &lr.RatePerLF, &lr.RatePerSqFt)
 	if err == sql.ErrNoRows {
-		return models.LaborRate{Category: category}, nil
+		return models.LaborRate{Category: category, RateType: rateType}, nil
 	}
 	return lr, err
 }
@@ -241,9 +243,9 @@ func (s *Store) UpsertLaborRate(lr models.LaborRate) error {
 		return err
 	}
 	_, err := s.DB.Exec(`
-		INSERT INTO labor_rates (category, description, rate_per_sq, rate_per_lf, rate_per_sqft)
-		VALUES (?, ?, ?, ?, ?)
-	`, lr.Category, lr.Description, lr.RatePerSq, lr.RatePerLF, lr.RatePerSqFt)
+		INSERT INTO labor_rates (category, rate_type, description, rate_per_sq, rate_per_lf, rate_per_sqft)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, lr.Category, lr.RateType, lr.Description, lr.RatePerSq, lr.RatePerLF, lr.RatePerSqFt)
 	return err
 }
 

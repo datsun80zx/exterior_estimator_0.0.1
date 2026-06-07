@@ -220,10 +220,10 @@ func (c *RoofingCalculator) Calculate(m models.RoofMeasurements) (*models.Estima
 	}
 
 	// --- NAILS ---
-	// ~320 nails per square (4 nails per shingle, 80 per bundle, 3 bundles per sq)
-	// A box of 7200 covers ~22 squares
+	// ~320 nails per square (5 nails per shingle, 80 per bundle, 3 bundles per sq)
+	// A box of 7200 covers ~15 squares
 	nailSquares := totalSquares
-	nailBoxes := int(math.Ceil(nailSquares / 22.0))
+	nailBoxes := int(math.Ceil(nailSquares / 15.0))
 	mat, _ := c.findMaterialByName("roofing", "Coil Roofing Nails")
 	if mat.ID > 0 {
 		result.Materials = append(result.Materials, models.MaterialLineItem{
@@ -235,7 +235,7 @@ func (c *RoofingCalculator) Calculate(m models.RoofMeasurements) (*models.Estima
 			CostTotal:    float64(nailBoxes) * mat.CostPerUnit,
 			PriceEach:    mat.PricePerUnit,
 			PriceTotal:   float64(nailBoxes) * mat.PricePerUnit,
-			Notes:        "~320 nails/sq, box of 7200 = ~22 squares",
+			Notes:        "~320 nails/sq, box of 7200 = ~15 squares",
 		})
 	}
 
@@ -245,13 +245,14 @@ func (c *RoofingCalculator) Calculate(m models.RoofMeasurements) (*models.Estima
 		result.TotalMaterialPrice += item.PriceTotal
 	}
 
-	// Labor
-	lr, _ := c.store.GetLaborRate(models.CategoryRoofing)
-	result.LaborCost = math.Round(totalSquares*lr.RatePerSq*100) / 100
+	// Labor - install
+	installRate, _ := c.store.GetLaborRate(models.CategoryRoofing, "install")
+	result.LaborCost = math.Round(totalSquares*installRate.RatePerSq*100) / 100
 
 	// Tear-off
 	if m.LayersToRemove > 0 {
-		result.TearOffCost = math.Round(totalSquares*50*float64(m.LayersToRemove)*100) / 100
+		tearoffRate, _ := c.store.GetLaborRate(models.CategoryRoofing, "tearoff")
+		result.TearOffCost = math.Round(totalSquares*tearoffRate.RatePerSq*float64(m.LayersToRemove)*100) / 100
 	}
 
 	result.TotalProjectCost = result.TotalMaterialCost + result.LaborCost + result.TearOffCost
