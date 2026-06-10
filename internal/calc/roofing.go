@@ -1,7 +1,6 @@
 package calc
 
 import (
-	"fmt"
 	"math"
 	"time"
 
@@ -17,263 +16,172 @@ func NewRoofingCalculator(store *db.Store) *RoofingCalculator {
 	return &RoofingCalculator{store: store}
 }
 
+// Calculate prices out all four tiers for one set of measurements, plus the
+// shared supplier order list. The formulas mirror the validated Excel model:
+//
+//	Materials (per tier, summed):
+//	  Shingles      = roof_sqft        * shingle_rate
+//	  Dumpster      = dumpsters         * dumpster_rate
+//	  Plywood       = decking_sheets    * osb_rate
+//	  Planks        = plank_deck_lf     * plank_deck_rate
+//	  Warranty      = roof_sqft         * warranty_rate
+//	  Underlayment  = roof_sqft         * deckdefense_rate
+//	  Ice & Water   = (eaves*2 + valleys + intake) * iw_rate
+//	  Ridge Vent    = ridge_lf          * ridge_vent_rate
+//	  Hip & Ridge   = (ridge_lf + hips) * hip_ridge_rate
+//	  Intake Vent   = intake_lf         * ridge_vent_rate
+//	  Starter       = (eaves + rakes)   * starter_rate
+//	  Drip Edge     = (eaves + rakes)   * drip_edge_rate
+//	  Nails         = roof_sqft         * nails_rate
+//	  Solar Fan     = solar_fans        * solar_fan_rate
+//	  Power Fan     = power_fans        * power_fan_rate
+//	  Broan Vent    = broan_vents       * broan_vent_rate
+//	  Pipe Boot     = pipe_boots        * pipeboot_rate
+//	  Chimney Flash = chimney           * flashing_rate * 2.5
+//	  Flashing      = flashing_rate (flat line, always included)
+//	  Skylights     = skylight_total (matrix or flat)
+//
+//	Labor = roof_sqft * labor_rate + addtl_tearoff_sf * addtl_tearoff_rate
+//	                                + steep_slope_sf  * steep_slope_rate
+//	Subtotal   = Materials + Labor
+//	TotalPrice = Subtotal / business_margin
+//	Overhead   = TotalPrice - Subtotal
 func (c *RoofingCalculator) Calculate(m models.RoofMeasurements) (*models.EstimateResult, error) {
-	// Resolve pitch multiplier
-	pitchMult, ok := models.PitchMultipliers[m.Pitch]
-	if !ok {
-		pitchMult = 1.0
+	r, err := c.store.RateMap()
+	if err != nil {
+		return nil, err
 	}
-	m.PitchMultiplier = pitchMult
 
-	// Waste factor as decimal
-	wasteFactor := 1.0 + (m.WasteFactorPct / 100.0)
+	margin := r[models.KeyBusinessMargin]
+	if margin <= 0 {
+		margin = 0.85
+	}
 
-	// Adjusted area with waste
-	adjustedArea := m.TotalAreaSqFt * wasteFactor
-	totalSquares := adjustedArea / 100.0
+	// Skylight total: detailed matrix selection if chosen, else flat rate.
+	skylightTotal := float64(m.Skylights) * r[models.KeySkylight]
+	if price, ok := models.LookupSkylight(m.SkylightMount, m.SkylightType, m.SkylightSize); ok {
+		skylightTotal = float64(m.Skylights) * price
+	}
+
+	// Add-on / shared material lines (identical across all four tiers).
+	shared := []models.LineItem{
+		{Name: "Dumpster", Amount: float64(m.Dumpsters) * r[models.KeyDumpster]},
+		{Name: "Plywood (OSB)", Amount: float64(m.Decking) * r[models.KeyOSB]},
+		{Name: "Plank Decking", Amount: m.PlankDeckLF * r[models.KeyPlankDeck]},
+		{Name: "Lifetime Warranty", Amount: m.RoofSqFt * r[models.KeyWarranty]},
+		{Name: "Underlayment", Amount: m.RoofSqFt * r[models.KeyUnderDeckDefense]},
+		{Name: "Ridge Vent", Amount: m.RidgeLF * r[models.KeyRidgeVent]},
+		{Name: "Intake Vent", Amount: m.IntakeLF * r[models.KeyRidgeVent]},
+		{Name: "Starter Strip", Amount: m.Perimeter() * r[models.KeyStarter]},
+		{Name: "Drip Edge", Amount: m.Perimeter() * r[models.KeyDripEdge]},
+		{Name: "Nails", Amount: m.RoofSqFt * r[models.KeyNails]},
+		{Name: "Solar Fan", Amount: float64(m.SolarFans) * r[models.KeySolarFan]},
+		{Name: "Power Fan", Amount: float64(m.PowerFans) * r[models.KeyPowerFan]},
+		{Name: "Broan Vent", Amount: float64(m.BroanVents) * r[models.KeyBroanVent]},
+		{Name: "Pipe Boot", Amount: float64(m.PipeBoots) * r[models.KeyPipeBoot]},
+		{Name: "Chimney Flashing", Amount: float64(m.Chimney) * r[models.KeyFlashing] * 2.5},
+		{Name: "Flashing", Amount: r[models.KeyFlashing]},
+		{Name: "Skylights", Amount: skylightTotal},
+	}
+
+	labor := m.RoofSqFt*r[models.KeyLabor] +
+		m.AddtlTearoffSF*r[models.KeyAddtlTearoff] +
+		m.SteepSlopeSF*r[models.KeySteepSlope]
 
 	result := &models.EstimateResult{
-		CustomerName:    m.CustomerName,
-		CustomerAddress: m.CustomerAddress,
-		CustomerPhone:   m.CustomerPhone,
-		CustomerEmail:   m.CustomerEmail,
-		ProjectType:     "Roofing",
-		TotalSquares:    math.Round(totalSquares*10) / 10,
-		Pitch:           m.Pitch,
-		WasteFactorPct:  m.WasteFactorPct,
-		CreatedAt:       time.Now(),
+		CustomerName:         m.CustomerName,
+		CustomerAddress:      m.CustomerAddress,
+		CustomerPhone:        m.CustomerPhone,
+		CustomerEmail:        m.CustomerEmail,
+		RoofSqFt:             m.RoofSqFt,
+		DripEdgeColor:        m.DripEdgeColor,
+		StepFlashingColor:    m.StepFlashingColor,
+		ApronFlashingColor:   m.ApronFlashingColor,
+		ChimneyFlashingColor: m.ChimneyFlashingColor,
+		CreatedAt:            time.Now(),
 	}
 
-	// --- SHINGLES ---
-	if m.ShingleMaterialID > 0 {
-		mat, err := c.store.GetMaterial(m.ShingleMaterialID)
-		if err != nil {
-			return nil, fmt.Errorf("getting shingle material: %w", err)
+	selected := map[string]bool{}
+	for _, k := range m.SelectedTiers {
+		selected[k] = true
+	}
+
+	for _, def := range models.Tiers {
+		// Tier-specific lines come first (Shingles, then shared, then the
+		// two tier-specific accessory lines), matching the Excel ordering.
+		lines := []models.LineItem{
+			{Name: "Shingles", Amount: m.RoofSqFt * r[def.ShingleKey]},
 		}
-		qty := int(math.Ceil(adjustedArea / mat.CoveragePerUnit))
-		result.Materials = append(result.Materials, models.MaterialLineItem{
-			MaterialName: mat.Name,
-			Brand:        mat.Brand,
-			ProductLine:  mat.ProductLine,
-			Quantity:     qty,
-			Unit:         mat.Unit,
-			CostEach:     mat.CostPerUnit,
-			CostTotal:    float64(qty) * mat.CostPerUnit,
-			PriceEach:    mat.PricePerUnit,
-			PriceTotal:   float64(qty) * mat.PricePerUnit,
-			Notes:        fmt.Sprintf("%.1f squares + %.0f%% waste", m.TotalAreaSqFt/100, m.WasteFactorPct),
-		})
-	}
+		lines = append(lines, shared...)
+		lines = append(lines,
+			models.LineItem{Name: "Ice & Water Shield", Amount: ((m.EavesLF * 2) + m.ValleysLF + m.IntakeLF) * r[def.IceWaterKey]},
+			models.LineItem{Name: "Hip & Ridge", Amount: (m.RidgeLF + m.HipsLF) * r[def.HipRidgeKey]},
+		)
 
-	// --- UNDERLAYMENT ---
-	if m.UnderlaymentMaterialID > 0 {
-		mat, err := c.store.GetMaterial(m.UnderlaymentMaterialID)
-		if err != nil {
-			return nil, fmt.Errorf("getting underlayment material: %w", err)
+		var matCost float64
+		for _, li := range lines {
+			matCost += li.Amount
 		}
-		// Underlayment covers the full roof area
-		qty := int(math.Ceil(m.TotalAreaSqFt / mat.CoveragePerUnit))
-		result.Materials = append(result.Materials, models.MaterialLineItem{
-			MaterialName: mat.Name,
-			Brand:        mat.Brand,
-			ProductLine:  mat.ProductLine,
-			Quantity:     qty,
-			Unit:         mat.Unit,
-			CostEach:     mat.CostPerUnit,
-			CostTotal:    float64(qty) * mat.CostPerUnit,
-			PriceEach:    mat.PricePerUnit,
-			PriceTotal:   float64(qty) * mat.PricePerUnit,
-			Notes:        fmt.Sprintf("%.0f sq ft coverage needed", m.TotalAreaSqFt),
-		})
-	}
 
-	// --- ICE & WATER SHIELD ---
-	if m.IceWaterMaterialID > 0 {
-		mat, err := c.store.GetMaterial(m.IceWaterMaterialID)
-		if err != nil {
-			return nil, fmt.Errorf("getting ice & water material: %w", err)
+		subtotal := matCost + labor
+		total := subtotal / margin
+		tr := models.TierResult{
+			Key:          def.Key,
+			Name:         def.Name,
+			ShingleName:  c.rateLabel(def.ShingleKey),
+			Lines:        lines,
+			MaterialCost: round2(matCost),
+			LaborCost:    round2(labor),
+			Subtotal:     round2(subtotal),
+			Overhead:     round2(total - subtotal),
+			TotalPrice:   round2(total),
+			Selected:     selected[def.Key],
 		}
-		// Ice & water runs along eaves (3ft x 2 = 6ft up from eave) + valleys
-		iceWaterArea := (m.EaveLengthFt * 6) + (m.ValleyLengthFt * 3)
-		qty := int(math.Ceil(iceWaterArea / mat.CoveragePerUnit))
-		if qty < 1 {
-			qty = 1
+		if m.RoofSqFt > 0 {
+			tr.PricePerSqFt = round2(total / m.RoofSqFt)
 		}
-		result.Materials = append(result.Materials, models.MaterialLineItem{
-			MaterialName: mat.Name,
-			Brand:        mat.Brand,
-			ProductLine:  mat.ProductLine,
-			Quantity:     qty,
-			Unit:         mat.Unit,
-			CostEach:     mat.CostPerUnit,
-			CostTotal:    float64(qty) * mat.CostPerUnit,
-			PriceEach:    mat.PricePerUnit,
-			PriceTotal:   float64(qty) * mat.PricePerUnit,
-			Notes:        fmt.Sprintf("Eaves: %.0f' × 6' + Valleys: %.0f' × 3'", m.EaveLengthFt, m.ValleyLengthFt),
-		})
+		result.Tiers = append(result.Tiers, tr)
 	}
 
-	// --- DRIP EDGE ---
-	if m.DripEdgeMaterialID > 0 {
-		mat, err := c.store.GetMaterial(m.DripEdgeMaterialID)
-		if err != nil {
-			return nil, fmt.Errorf("getting drip edge material: %w", err)
-		}
-		// Drip edge along eaves + rakes
-		totalDripLF := m.EaveLengthFt + m.RakeLengthFt
-		qty := int(math.Ceil(totalDripLF / mat.CoveragePerUnit))
-		result.Materials = append(result.Materials, models.MaterialLineItem{
-			MaterialName: mat.Name,
-			Brand:        mat.Brand,
-			ProductLine:  mat.ProductLine,
-			Quantity:     qty,
-			Unit:         mat.Unit,
-			CostEach:     mat.CostPerUnit,
-			CostTotal:    float64(qty) * mat.CostPerUnit,
-			PriceEach:    mat.PricePerUnit,
-			PriceTotal:   float64(qty) * mat.PricePerUnit,
-			Notes:        fmt.Sprintf("Eave: %.0f' + Rake: %.0f' = %.0f LF", m.EaveLengthFt, m.RakeLengthFt, totalDripLF),
-		})
-	}
-
-	// --- RIDGE CAP ---
-	if m.RidgeCapMaterialID > 0 {
-		mat, err := c.store.GetMaterial(m.RidgeCapMaterialID)
-		if err != nil {
-			return nil, fmt.Errorf("getting ridge cap material: %w", err)
-		}
-		totalRidgeLF := m.RidgeLengthFt + m.HipLengthFt
-		qty := int(math.Ceil(totalRidgeLF / mat.CoveragePerUnit))
-		if qty < 1 && totalRidgeLF > 0 {
-			qty = 1
-		}
-		result.Materials = append(result.Materials, models.MaterialLineItem{
-			MaterialName: mat.Name,
-			Brand:        mat.Brand,
-			ProductLine:  mat.ProductLine,
-			Quantity:     qty,
-			Unit:         mat.Unit,
-			CostEach:     mat.CostPerUnit,
-			CostTotal:    float64(qty) * mat.CostPerUnit,
-			PriceEach:    mat.PricePerUnit,
-			PriceTotal:   float64(qty) * mat.PricePerUnit,
-			Notes:        fmt.Sprintf("Ridge: %.0f' + Hips: %.0f' = %.0f LF", m.RidgeLengthFt, m.HipLengthFt, totalRidgeLF),
-		})
-	}
-
-	// --- STARTER STRIP ---
-	if m.StarterMaterialID > 0 {
-		mat, err := c.store.GetMaterial(m.StarterMaterialID)
-		if err != nil {
-			return nil, fmt.Errorf("getting starter material: %w", err)
-		}
-		// Starter runs along eaves + rakes
-		totalStarterLF := m.EaveLengthFt + m.RakeLengthFt
-		qty := int(math.Ceil(totalStarterLF / mat.CoveragePerUnit))
-		result.Materials = append(result.Materials, models.MaterialLineItem{
-			MaterialName: mat.Name,
-			Brand:        mat.Brand,
-			ProductLine:  mat.ProductLine,
-			Quantity:     qty,
-			Unit:         mat.Unit,
-			CostEach:     mat.CostPerUnit,
-			CostTotal:    float64(qty) * mat.CostPerUnit,
-			PriceEach:    mat.PricePerUnit,
-			PriceTotal:   float64(qty) * mat.PricePerUnit,
-			Notes:        fmt.Sprintf("%.0f LF total (eave + rake)", totalStarterLF),
-		})
-	}
-
-	// --- PIPE BOOTS ---
-	if m.NumPipeBoots > 0 {
-		// Grab a default pipe boot
-		mat, _ := c.findMaterialByName("roofing", "Pipe Boot")
-		if mat.ID > 0 {
-			result.Materials = append(result.Materials, models.MaterialLineItem{
-				MaterialName: mat.Name,
-				Brand:        mat.Brand,
-				Quantity:     m.NumPipeBoots,
-				Unit:         "piece",
-				CostEach:     mat.CostPerUnit,
-				CostTotal:    float64(m.NumPipeBoots) * mat.CostPerUnit,
-				PriceEach:    mat.PricePerUnit,
-				PriceTotal:   float64(m.NumPipeBoots) * mat.PricePerUnit,
-			})
-		}
-	}
-
-	// --- EXHAUST VENTS ---
-	if m.NumExhaustVents > 0 {
-		mat, _ := c.findMaterialByName("roofing", "Exhaust Vent")
-		if mat.ID > 0 {
-			result.Materials = append(result.Materials, models.MaterialLineItem{
-				MaterialName: mat.Name,
-				Brand:        mat.Brand,
-				Quantity:     m.NumExhaustVents,
-				Unit:         "piece",
-				CostEach:     mat.CostPerUnit,
-				CostTotal:    float64(m.NumExhaustVents) * mat.CostPerUnit,
-				PriceEach:    mat.PricePerUnit,
-				PriceTotal:   float64(m.NumExhaustVents) * mat.PricePerUnit,
-			})
-		}
-	}
-
-	// --- NAILS ---
-	// ~320 nails per square (5 nails per shingle, 80 per bundle, 3 bundles per sq)
-	// A box of 7200 covers ~15 squares
-	nailSquares := totalSquares
-	nailBoxes := int(math.Ceil(nailSquares / 15.0))
-	mat, _ := c.findMaterialByName("roofing", "Coil Roofing Nails")
-	if mat.ID > 0 {
-		result.Materials = append(result.Materials, models.MaterialLineItem{
-			MaterialName: mat.Name,
-			Brand:        mat.Brand,
-			Quantity:     nailBoxes,
-			Unit:         "box",
-			CostEach:     mat.CostPerUnit,
-			CostTotal:    float64(nailBoxes) * mat.CostPerUnit,
-			PriceEach:    mat.PricePerUnit,
-			PriceTotal:   float64(nailBoxes) * mat.PricePerUnit,
-			Notes:        "~320 nails/sq, box of 7200 = ~15 squares",
-		})
-	}
-
-	// --- Calculate Totals ---
-	for _, item := range result.Materials {
-		result.TotalMaterialCost += item.CostTotal
-		result.TotalMaterialPrice += item.PriceTotal
-	}
-
-	// Labor - install
-	installRate, _ := c.store.GetLaborRate(models.CategoryRoofing, "install")
-	result.LaborCost = math.Round(totalSquares*installRate.RatePerSq*100) / 100
-
-	// Tear-off
-	if m.LayersToRemove > 0 {
-		tearoffRate, _ := c.store.GetLaborRate(models.CategoryRoofing, "tearoff")
-		result.TearOffCost = math.Round(totalSquares*tearoffRate.RatePerSq*float64(m.LayersToRemove)*100) / 100
-	}
-
-	result.TotalProjectCost = result.TotalMaterialCost + result.LaborCost + result.TearOffCost
-	result.TotalProjectPrice = result.TotalMaterialPrice + result.LaborCost + result.TearOffCost
-	result.Profit = result.TotalProjectPrice - result.TotalProjectCost
-	if result.TotalProjectPrice > 0 {
-		result.MarginPct = math.Round((result.Profit/result.TotalProjectPrice)*10000) / 100
-	}
-
+	result.OrderList = c.orderList(m)
 	return result, nil
 }
 
-func (c *RoofingCalculator) findMaterialByName(category, nameContains string) (models.Material, error) {
-	var m models.Material
-	err := c.store.DB.QueryRow(`
-		SELECT id, category, brand, product_line, name, unit,
-		       coverage_per_unit, cost_per_unit, price_per_unit, is_active
-		FROM materials
-		WHERE category = ? AND name LIKE ? AND is_active = 1
-		LIMIT 1
-	`, category, "%"+nameContains+"%").Scan(&m.ID, &m.Category, &m.Brand, &m.ProductLine,
-		&m.Name, &m.Unit, &m.CoveragePerUnit, &m.CostPerUnit, &m.PricePerUnit, &m.IsActive)
-	return m, err
+// orderList converts measurements into physical supplier quantities.
+//
+//	Shingles     = (roof/100) * 3            bundles
+//	Underlayment = (roof/100) / 10           rolls
+//	Ice & Water  = (eaves*2 + valleys + intake) / 66  rolls
+//	Ridge Vent   = ridge / 4                 pieces
+//	Hip & Ridge  = (hips + ridge) / 33       bundles
+//	Intake Vent  = intake / 4                pieces
+//	Starter      = (eaves + rakes) / 105     bundles
+//	Drip Edge    = (eaves + rakes) / 10      sticks
+//	Nails        = (roof/100) / 15           boxes
+func (c *RoofingCalculator) orderList(m models.RoofMeasurements) []models.OrderItem {
+	iw := (m.EavesLF * 2) + m.ValleysLF + m.IntakeLF
+	return []models.OrderItem{
+		{Name: "Shingles", Qty: ceil1(m.RoofSqFt / 100 * 3), Unit: "bundles"},
+		{Name: "Underlayment", Qty: ceil1(m.RoofSqFt / 100 / 10), Unit: "rolls"},
+		{Name: "Ice & Water Shield", Qty: ceil1(iw / 66), Unit: "rolls"},
+		{Name: "Ridge Vent", Qty: ceil1(m.RidgeLF / 4), Unit: "pieces"},
+		{Name: "Hip & Ridge Shingle", Qty: ceil1((m.HipsLF + m.RidgeLF) / 33), Unit: "bundles"},
+		{Name: "Intake Vent", Qty: ceil1(m.IntakeLF / 4), Unit: "pieces"},
+		{Name: "Starter Shingle", Qty: ceil1(m.Perimeter() / 105), Unit: "bundles"},
+		{Name: "Drip Edge", Qty: ceil1(m.Perimeter() / 10), Unit: "sticks"},
+		{Name: "Nails", Qty: ceil1(m.RoofSqFt / 100 / 15), Unit: "boxes"},
+	}
 }
+
+func (c *RoofingCalculator) rateLabel(key string) string {
+	if lbl, ok := c.store.RateLabel(key); ok {
+		return lbl
+	}
+	return key
+}
+
+func round2(f float64) float64 { return math.Round(f*100) / 100 }
+
+// ceil1 rounds up to whole units for ordering, but keeps a single decimal so
+// the estimator can see fractional coverage before rounding their PO.
+func ceil1(f float64) float64 { return math.Round(f*10) / 10 }

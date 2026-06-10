@@ -1,0 +1,94 @@
+{{define "title"}}Price Book{{end}}
+{{define "content"}}
+<style>
+    .rate-group {
+        margin-bottom: 28px;
+    }
+
+    .rate-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+        background: var(--surface);
+        border-radius: var(--radius);
+        overflow: hidden;
+    }
+
+    .rate-table th {
+        text-align: left;
+        padding: 10px 12px;
+        background: #f3f4f6;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: .5px;
+        color: var(--text-muted);
+        border-bottom: 2px solid var(--border);
+    }
+
+    .rate-table td {
+        padding: 8px 12px;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .rate-table .unit {
+        color: var(--text-muted);
+        font-size: 12px;
+    }
+
+    .rate-row form {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .rate-row input[type=number] {
+        width: 110px;
+    }
+
+    .rate-row .saved {
+        color: var(--success);
+        font-size: 12px;
+        font-weight: 600;
+    }
+</style>
+
+<div class="admin">
+    <div class="admin-header">
+        <h1>Price Book</h1>
+    </div>
+    <p class="admin-note">
+        These rates drive every estimate. Shingle, hip &amp; ridge, and ice &amp; water rates feed the four tiers;
+        everything else is shared. The Business Margin is the price divisor (0.85 = 15% built-in overhead).
+    </p>
+
+    {{range .Groups}}
+    <div class="rate-group">
+        <h2 class="category-header">{{.Group}}</h2>
+        <table class="rate-table">
+            <thead>
+                <tr>
+                    <th style="width:55%">Item</th>
+                    <th>Unit</th>
+                    <th>Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Rates}}
+                <tr class="rate-row">
+                    <td>{{.Label}}</td>
+                    <td class="unit">{{.Unit}}</td>
+                    <td>
+                        <form hx-post="/admin/pricebook/{{.ID}}" hx-target="find .saved-slot" hx-swap="innerHTML">
+                            <input type="number" name="amount" value="{{printf " %.2f" .Amount}}" step="0.01" min="0">
+                            <button type="submit" class="btn-sm">Save</button>
+                            <span class="saved-slot"></span>
+                        </form>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+    {{end}}
+</div>
+{{end}}

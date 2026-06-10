@@ -31,7 +31,6 @@
             padding: 40px;
         }
 
-        /* --- Header --- */
         .proposal-header {
             display: flex;
             justify-content: space-between;
@@ -44,7 +43,6 @@
         .company-info h1 {
             font-size: 28px;
             font-weight: 700;
-            color: #1a1a2e;
             letter-spacing: -0.5px;
         }
 
@@ -63,7 +61,6 @@
             font-weight: 300;
             text-transform: uppercase;
             letter-spacing: 3px;
-            color: #1a1a2e;
         }
 
         .proposal-label .date {
@@ -72,7 +69,6 @@
             margin-top: 4px;
         }
 
-        /* --- Customer Block --- */
         .customer-block {
             background: #f8f9fa;
             border-left: 4px solid #1a1a2e;
@@ -98,19 +94,14 @@
             color: #444;
         }
 
-        /* --- Scope Section --- */
-        .scope {
-            margin-bottom: 32px;
-        }
-
-        .scope h3 {
+        .section-h {
             font-size: 16px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 1px;
             border-bottom: 1px solid #ddd;
             padding-bottom: 8px;
-            margin-bottom: 16px;
+            margin: 32px 0 16px;
         }
 
         .scope-details {
@@ -134,83 +125,47 @@
             font-weight: 600;
         }
 
-        /* --- Materials (customer view - no costs) --- */
-        .materials {
-            margin-bottom: 32px;
+        .options {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         }
 
-        .materials h3 {
-            font-size: 16px;
-            font-weight: 600;
+        .option-card {
+            border: 2px solid #1a1a2e;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .option-card .opt-name {
+            background: #1a1a2e;
+            color: #fff;
+            padding: 10px 16px;
+            font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 1px;
-            border-bottom: 1px solid #ddd;
-            padding-bottom: 8px;
-            margin-bottom: 16px;
-        }
-
-        .materials-table {
-            width: 100%;
-            border-collapse: collapse;
             font-size: 14px;
         }
 
-        .materials-table th {
-            text-align: left;
-            padding: 8px 12px;
-            background: #f0f0f0;
-            font-weight: 600;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+        .option-card .opt-body {
+            padding: 16px;
         }
 
-        .materials-table td {
-            padding: 8px 12px;
-            border-bottom: 1px solid #eee;
+        .option-card .opt-shingle {
+            font-size: 13px;
+            color: #555;
+            margin-bottom: 12px;
         }
 
-        .materials-table .num {
-            text-align: right;
-        }
-
-        /* --- Pricing --- */
-        .pricing {
-            margin-bottom: 40px;
-        }
-
-        .pricing h3 {
-            font-size: 16px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            border-bottom: 1px solid #ddd;
-            padding-bottom: 8px;
-            margin-bottom: 16px;
-        }
-
-        .price-total {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: #1a1a2e;
-            color: #fff;
-            padding: 20px 24px;
-            font-size: 24px;
+        .option-card .opt-price {
+            font-size: 28px;
             font-weight: 700;
         }
 
-        .price-total .label {
-            font-weight: 300;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        }
-
-        /* --- Footer --- */
-        .proposal-footer {
-            margin-top: 48px;
-            padding-top: 24px;
-            border-top: 1px solid #ddd;
+        .option-card .opt-psf {
+            font-size: 12px;
+            color: #777;
+            margin-top: 2px;
         }
 
         .signatures {
@@ -240,7 +195,6 @@
             margin-bottom: 8px;
         }
 
-        /* --- Print --- */
         @media print {
             body {
                 background: #fff;
@@ -285,9 +239,8 @@
     <div class="proposal">
         <div class="proposal-header">
             <div class="company-info">
-                {{/* TODO: Make company name/info configurable */}}
                 <h1>Hinkley Roofing</h1>
-                <p>Northeast Ohio · Licensed & Insured</p>
+                <p>Northeast Ohio · Licensed &amp; Insured</p>
             </div>
             <div class="proposal-label">
                 <h2>Proposal</h2>
@@ -303,72 +256,51 @@
             {{if .Result.CustomerEmail}}<div class="detail">{{.Result.CustomerEmail}}</div>{{end}}
         </div>
 
-        <div class="scope">
-            <h3>Scope of Work — {{.Result.ProjectType}}</h3>
-            <div class="scope-details">
-                <div class="scope-item">
-                    <span class="label">Roof Area</span>
-                    <span class="value">{{.Result.TotalSquares}} squares</span>
+        <div class="section-h">Scope of Work — Roofing</div>
+        <div class="scope-details">
+            <div class="scope-item"><span class="label">Roof Area</span><span class="value">{{.Result.RoofSqFt}} sq
+                    ft</span></div>
+            {{if .Result.DripEdgeColor}}<div class="scope-item"><span class="label">Drip Edge Color</span><span
+                    class="value">{{.Result.DripEdgeColor}}</span></div>{{end}}
+            {{if .Result.StepFlashingColor}}<div class="scope-item"><span class="label">Step Flashing</span><span
+                    class="value">{{.Result.StepFlashingColor}}</span></div>{{end}}
+            {{if .Result.ApronFlashingColor}}<div class="scope-item"><span class="label">Apron Flashing</span><span
+                    class="value">{{.Result.ApronFlashingColor}}</span></div>{{end}}
+            {{if .Result.ChimneyFlashingColor}}<div class="scope-item"><span class="label">Chimney Flashing</span><span
+                    class="value">{{.Result.ChimneyFlashingColor}}</span></div>{{end}}
+        </div>
+
+        <div class="section-h">{{if gt (len .Result.SelectedTierResults) 1}}Your Options{{else}}Investment{{end}}</div>
+        <div class="options">
+            {{range .Result.SelectedTierResults}}
+            <div class="option-card">
+                <div class="opt-name">{{.Name}}</div>
+                <div class="opt-body">
+                    <div class="opt-shingle">{{.ShingleName}}</div>
+                    <div class="opt-price">{{currency .TotalPrice}}</div>
+                    <div class="opt-psf">{{currency .PricePerSqFt}} / sq ft</div>
                 </div>
-                <div class="scope-item">
-                    <span class="label">Pitch</span>
-                    <span class="value">{{.Result.Pitch}}</span>
-                </div>
+            </div>
+            {{end}}
+        </div>
+
+        <div class="signatures">
+            <div>
+                <div class="sig-line">Homeowner Signature / Date</div>
+            </div>
+            <div>
+                <div class="sig-line">Company Representative / Date</div>
             </div>
         </div>
 
-        <div class="materials">
-            <h3>Materials</h3>
-            <table class="materials-table">
-                <thead>
-                    <tr>
-                        <th>Item</th>
-                        <th>Brand</th>
-                        <th class="num">Quantity</th>
-                        <th>Unit</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {{range .Result.Materials}}
-                    <tr>
-                        <td>{{.MaterialName}}</td>
-                        <td>{{.Brand}}</td>
-                        <td class="num">{{.Quantity}}</td>
-                        <td>{{.Unit}}</td>
-                    </tr>
-                    {{end}}
-                </tbody>
-            </table>
-        </div>
-
-        <div class="pricing">
-            <h3>Investment</h3>
-            <div class="price-total">
-                <span class="label">Total Project Price</span>
-                <span>{{currency .Result.TotalProjectPrice}}</span>
-            </div>
-        </div>
-
-        <div class="proposal-footer">
-            <div class="signatures">
-                <div>
-                    <div class="sig-line">Homeowner Signature / Date</div>
-                </div>
-                <div>
-                    <div class="sig-line">Company Representative / Date</div>
-                </div>
-            </div>
-
-            <div class="terms">
-                <h4>Terms & Conditions</h4>
-                <p>
-                    This proposal is valid for 30 days from the date above.
-                    A signed proposal serves as authorization to proceed.
-                    Payment terms: deposit due upon signing, balance due upon completion.
-                    All work performed per manufacturer specifications.
-                    Warranty: manufacturer warranty on materials; workmanship warranty per company policy.
-                </p>
-            </div>
+        <div class="terms">
+            <h4>Terms &amp; Conditions</h4>
+            <p>
+                This proposal is valid for 30 days from the date above. A signed proposal serves as authorization to
+                proceed. Payment terms: deposit due upon signing, balance due upon completion. All work performed per
+                manufacturer specifications. Warranty: manufacturer warranty on materials; workmanship warranty per
+                company policy.
+            </p>
         </div>
     </div>
 </body>

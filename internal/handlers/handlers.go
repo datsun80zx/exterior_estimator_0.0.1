@@ -23,36 +23,18 @@ type Handler struct {
 
 func New(store *db.Store, templateDir string) (*Handler, error) {
 	funcMap := template.FuncMap{
-		"currency": func(f float64) string {
-			return fmt.Sprintf("$%.2f", f)
+		"currency": formatCurrency,
+		"qty":      func(f float64) string { return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.1f", f), "0"), ".") },
+		"colors": func() []string {
+			return []string{"White", "Brown", "Black", "Bronze", "Almond", "Clay", "Gray", "Copper"}
 		},
-		"multiply": func(a, b float64) float64 {
-			return a * b
-		},
-		"pitches": func() []string {
-			return []string{
-				"flat", "1/12", "2/12", "3/12", "4/12", "5/12", "6/12",
-				"7/12", "8/12", "9/12", "10/12", "11/12", "12/12", "13/12", "14/12",
-			}
-		},
-		"seq": func(n int) []int {
-			s := make([]int, n)
-			for i := range s {
-				s[i] = i
-			}
-			return s
-		},
+		"skylightMatrix": func() []models.SkylightOption { return models.SkylightMatrix },
 	}
 
 	templates := make(map[string]*template.Template)
-
-	// Parse layout as the base template
 	layoutFile := filepath.Join(templateDir, "layout.html")
-
-	// Parse partials (shared fragments like estimate_result.html)
 	partialFiles, _ := filepath.Glob(filepath.Join(templateDir, "partials", "*.html"))
 
-	// Each page template gets: layout + all partials + itself
 	pageFiles, err := filepath.Glob(filepath.Join(templateDir, "*.html"))
 	if err != nil {
 		return nil, fmt.Errorf("finding templates: %w", err)
@@ -63,20 +45,15 @@ func New(store *db.Store, templateDir string) (*Handler, error) {
 		if name == "layout.html" {
 			continue
 		}
-
-		// Build the file list: layout first, then partials, then the page
 		files := []string{layoutFile}
 		files = append(files, partialFiles...)
 		files = append(files, page)
-
 		t, err := template.New(name).Funcs(funcMap).ParseFiles(files...)
 		if err != nil {
 			return nil, fmt.Errorf("parsing template %s: %w", name, err)
 		}
 		templates[name] = t
 	}
-
-	// Also parse partials standalone (for HTMX responses)
 	for _, pf := range partialFiles {
 		name := filepath.Base(pf)
 		t, err := template.New(name).Funcs(funcMap).ParseFiles(pf)
@@ -94,24 +71,17 @@ func New(store *db.Store, templateDir string) (*Handler, error) {
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	// Pages
 	mux.HandleFunc("GET /", h.handleHome)
 	mux.HandleFunc("GET /roofing", h.handleRoofingForm)
 	mux.HandleFunc("POST /roofing/calculate", h.handleRoofingCalculate)
 	mux.HandleFunc("GET /roofing/proposal/{id}", h.handleProposal)
 
-	// Material admin
-	mux.HandleFunc("GET /admin/materials", h.handleMaterialsList)
-	mux.HandleFunc("GET /admin/materials/new", h.handleMaterialForm)
-	mux.HandleFunc("GET /admin/materials/{id}/edit", h.handleMaterialEdit)
-	mux.HandleFunc("POST /admin/materials", h.handleMaterialSave)
-	mux.HandleFunc("DELETE /admin/materials/{id}", h.handleMaterialDelete)
-
-	// HTMX partials
-	mux.HandleFunc("GET /htmx/shingles-by-brand", h.handleShinglesByBrand)
+	// Price book admin
+	mux.HandleFunc("GET /admin/pricebook", h.handlePriceBook)
+	mux.HandleFunc("POST /admin/pricebook/{id}", h.handleRateUpdate)
 }
 
-// --- Page Handlers ---
+// --- Pages ---
 
 func (h *Handler) handleHome(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
@@ -122,31 +92,9 @@ func (h *Handler) handleHome(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleRoofingForm(w http.ResponseWriter, r *http.Request) {
-	materials, err := h.store.GetMaterialsByCategory(models.CategoryRoofing)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	brands, err := h.store.GetShingleBrands()
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	// Group materials by type for the form dropdowns
-	data := map[string]any{
-		"Materials":     materials,
-		"Brands":        brands,
-		"Shingles":      filterByName(materials, "Shingle"),
-		"Underlayments": filterByName(materials, "Underlayment"),
-		"IceWater":      filterByName(materials, "Ice & Water"),
-		"DripEdge":      filterByName(materials, "Drip Edge"),
-		"RidgeCap":      filterByNameMulti(materials, []string{"Hip & Ridge", "Ridge Vent"}),
-		"Starter":       filterByName(materials, "Starter"),
-	}
-
-	h.render(w, "roofing_form.html", data)
+	h.render(w, "roofing_form.html", map[string]any{
+		"Tiers": models.Tiers,
+	})
 }
 
 func (h *Handler) handleRoofingCalculate(w http.ResponseWriter, r *http.Request) {
@@ -155,70 +103,66 @@ func (h *Handler) handleRoofingCalculate(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	measurements := models.RoofMeasurements{
+	m := models.RoofMeasurements{
 		CustomerName:    r.FormValue("customer_name"),
 		CustomerAddress: r.FormValue("customer_address"),
 		CustomerPhone:   r.FormValue("customer_phone"),
 		CustomerEmail:   r.FormValue("customer_email"),
 
-		TotalAreaSqFt:   parseFloat(r.FormValue("total_area_sqft")),
-		Pitch:           r.FormValue("pitch"),
-		RidgeLengthFt:   parseFloat(r.FormValue("ridge_length_ft")),
-		HipLengthFt:     parseFloat(r.FormValue("hip_length_ft")),
-		ValleyLengthFt:  parseFloat(r.FormValue("valley_length_ft")),
-		EaveLengthFt:    parseFloat(r.FormValue("eave_length_ft")),
-		RakeLengthFt:    parseFloat(r.FormValue("rake_length_ft")),
-		NumPipeBoots:    parseInt(r.FormValue("num_pipe_boots")),
-		NumExhaustVents: parseInt(r.FormValue("num_exhaust_vents")),
-		LayersToRemove:  parseInt(r.FormValue("layers_to_remove")),
-		WasteFactorPct:  parseFloat(r.FormValue("waste_factor_pct")),
+		RoofSqFt:  parseFloat(r.FormValue("roof_sqft")),
+		EavesLF:   parseFloat(r.FormValue("eaves_lf")),
+		RakesLF:   parseFloat(r.FormValue("rakes_lf")),
+		ValleysLF: parseFloat(r.FormValue("valleys_lf")),
+		HipsLF:    parseFloat(r.FormValue("hips_lf")),
+		RidgeLF:   parseFloat(r.FormValue("ridge_lf")),
+		IntakeLF:  parseFloat(r.FormValue("intake_lf")),
 
-		ShingleMaterialID:      parseInt64(r.FormValue("shingle_material_id")),
-		UnderlaymentMaterialID: parseInt64(r.FormValue("underlayment_material_id")),
-		IceWaterMaterialID:     parseInt64(r.FormValue("ice_water_material_id")),
-		DripEdgeMaterialID:     parseInt64(r.FormValue("drip_edge_material_id")),
-		RidgeCapMaterialID:     parseInt64(r.FormValue("ridge_cap_material_id")),
-		StarterMaterialID:      parseInt64(r.FormValue("starter_material_id")),
+		Chimney:    parseInt(r.FormValue("chimney")),
+		PipeBoots:  parseInt(r.FormValue("pipe_boots")),
+		Decking:    parseInt(r.FormValue("decking")),
+		SolarFans:  parseInt(r.FormValue("solar_fans")),
+		PowerFans:  parseInt(r.FormValue("power_fans")),
+		BroanVents: parseInt(r.FormValue("broan_vents")),
+		Dumpsters:  parseInt(r.FormValue("dumpsters")),
+		Skylights:  parseInt(r.FormValue("skylights")),
+
+		PlankDeckLF:    parseFloat(r.FormValue("plank_deck_lf")),
+		AddtlTearoffSF: parseFloat(r.FormValue("addtl_tearoff_sf")),
+		SteepSlopeSF:   parseFloat(r.FormValue("steep_slope_sf")),
+
+		DripEdgeColor:        r.FormValue("drip_edge_color"),
+		StepFlashingColor:    r.FormValue("step_flashing_color"),
+		ApronFlashingColor:   r.FormValue("apron_flashing_color"),
+		ChimneyFlashingColor: r.FormValue("chimney_flashing_color"),
+
+		SkylightMount: r.FormValue("skylight_mount"),
+		SkylightType:  r.FormValue("skylight_type"),
+		SkylightSize:  r.FormValue("skylight_size"),
 	}
 
-	result, err := h.roofCalc.Calculate(measurements)
+	result, err := h.roofCalc.Calculate(m)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
 
-	// Save the estimate
 	estimateJSON, _ := json.Marshal(result)
-	id, err := h.store.SaveEstimate(
-		result.CustomerName,
-		result.CustomerAddress,
-		result.ProjectType,
-		string(estimateJSON),
-	)
+	id, err := h.store.SaveEstimate(result.CustomerName, result.CustomerAddress, "Roofing", string(estimateJSON))
 	if err != nil {
 		log.Printf("Error saving estimate: %v", err)
 	}
 
-	data := map[string]any{
-		"Result":     result,
-		"EstimateID": id,
-	}
-
-	// If HTMX request, return partial
+	data := map[string]any{"Result": result, "EstimateID": id}
 	if r.Header.Get("HX-Request") == "true" {
 		h.renderPartial(w, "estimate_result.html", data)
 		return
 	}
-
 	h.render(w, "estimate_result_page.html", data)
 }
 
 func (h *Handler) handleProposal(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	var estimateJSON string
-	err := h.store.DB.QueryRow(
-		"SELECT estimate_json FROM saved_estimates WHERE id = ?", id,
-	).Scan(&estimateJSON)
+	estimateJSON, err := h.store.GetEstimateJSON(id)
 	if err != nil {
 		http.Error(w, "Estimate not found", 404)
 		return
@@ -230,123 +174,53 @@ func (h *Handler) handleProposal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.renderPartial(w, "proposal.html", map[string]any{
-		"Result": result,
-	})
+	// Tier selection comes from ?tiers=class3,luxury
+	if q := r.URL.Query().Get("tiers"); q != "" {
+		want := map[string]bool{}
+		for _, k := range strings.Split(q, ",") {
+			want[strings.TrimSpace(k)] = true
+		}
+		for i := range result.Tiers {
+			result.Tiers[i].Selected = want[result.Tiers[i].Key]
+		}
+	}
+
+	h.renderPartial(w, "proposal.html", map[string]any{"Result": result})
 }
 
-// --- Material Admin Handlers ---
+// --- Price book admin ---
 
-func (h *Handler) handleMaterialsList(w http.ResponseWriter, r *http.Request) {
-	materials, err := h.store.GetAllMaterials()
+func (h *Handler) handlePriceBook(w http.ResponseWriter, r *http.Request) {
+	groups, err := h.store.GetRatesByGroup()
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-
-	// Group by category
-	grouped := map[string][]models.Material{
-		"roofing": {},
-		"siding":  {},
-		"gutters": {},
-	}
-	for _, m := range materials {
-		grouped[string(m.Category)] = append(grouped[string(m.Category)], m)
-	}
-
-	h.render(w, "admin_materials.html", map[string]any{
-		"Grouped": grouped,
-	})
+	h.render(w, "admin_pricebook.html", map[string]any{"Groups": groups})
 }
 
-func (h *Handler) handleMaterialForm(w http.ResponseWriter, r *http.Request) {
-	h.render(w, "admin_material_form.html", map[string]any{
-		"Material": models.Material{IsActive: true},
-		"IsNew":    true,
-	})
-}
-
-func (h *Handler) handleMaterialEdit(w http.ResponseWriter, r *http.Request) {
-	id := parseInt64(r.PathValue("id"))
-	mat, err := h.store.GetMaterial(id)
-	if err != nil {
-		http.Error(w, "Material not found", 404)
-		return
-	}
-	h.render(w, "admin_material_form.html", map[string]any{
-		"Material": mat,
-		"IsNew":    false,
-	})
-}
-
-func (h *Handler) handleMaterialSave(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleRateUpdate(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, err.Error(), 400)
 		return
 	}
-
-	mat := models.Material{
-		ID:              parseInt64(r.FormValue("id")),
-		Category:        models.MaterialCategory(r.FormValue("category")),
-		Brand:           r.FormValue("brand"),
-		ProductLine:     r.FormValue("product_line"),
-		Name:            r.FormValue("name"),
-		Unit:            r.FormValue("unit"),
-		CoveragePerUnit: parseFloat(r.FormValue("coverage_per_unit")),
-		CostPerUnit:     parseFloat(r.FormValue("cost_per_unit")),
-		PricePerUnit:    parseFloat(r.FormValue("price_per_unit")),
-		IsActive:        r.FormValue("is_active") == "on" || r.FormValue("is_active") == "true",
-	}
-
-	if _, err := h.store.UpsertMaterial(mat); err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	if r.Header.Get("HX-Request") == "true" {
-		w.Header().Set("HX-Redirect", "/admin/materials")
-		w.WriteHeader(200)
-		return
-	}
-	http.Redirect(w, r, "/admin/materials", http.StatusSeeOther)
-}
-
-func (h *Handler) handleMaterialDelete(w http.ResponseWriter, r *http.Request) {
 	id := parseInt64(r.PathValue("id"))
-	if err := h.store.DeleteMaterial(id); err != nil {
+	amount := parseFloat(r.FormValue("amount"))
+	if err := h.store.UpdateRateAmount(id, amount); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	w.WriteHeader(200)
-}
-
-// --- HTMX Partials ---
-
-func (h *Handler) handleShinglesByBrand(w http.ResponseWriter, r *http.Request) {
-	brand := r.URL.Query().Get("brand")
-	if brand == "" {
-		w.Write([]byte(`<option value="">-- Select Brand First --</option>`))
-		return
-	}
-
-	shingles, err := h.store.GetShinglesByBrand(brand)
+	// Return the updated amount cell for HTMX swap.
+	rate, err := h.store.GetRate(id)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-
-	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(`<option value="">-- Select Shingle --</option>`))
-	for _, s := range shingles {
-		label := s.ProductLine
-		if s.PricePerUnit > 0 {
-			label += fmt.Sprintf(" ($%.2f/%s)", s.PricePerUnit, s.Unit)
-		}
-		fmt.Fprintf(w, `<option value="%d">%s</option>`, s.ID, label)
-	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprintf(w, `<span class="saved">Saved · %s</span>`, formatCurrency(rate.Amount))
 }
 
-// --- Helpers ---
+// --- Render helpers ---
 
 func (h *Handler) render(w http.ResponseWriter, name string, data any) {
 	t, ok := h.templates[name]
@@ -356,7 +230,6 @@ func (h *Handler) render(w http.ResponseWriter, name string, data any) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	// Execute the layout wrapper, which calls {{block "content"}} defined by the page
 	if err := t.ExecuteTemplate(w, "layout.html", data); err != nil {
 		log.Printf("Template error (%s): %v", name, err)
 		http.Error(w, "Internal Server Error", 500)
@@ -377,27 +250,31 @@ func (h *Handler) renderPartial(w http.ResponseWriter, name string, data any) {
 	}
 }
 
-func filterByName(materials []models.Material, contains string) []models.Material {
-	var result []models.Material
-	for _, m := range materials {
-		if strings.Contains(m.Name, contains) {
-			result = append(result, m)
-		}
+// formatCurrency renders a dollar amount with thousands separators, e.g.
+// 31172.44 -> "$31,172.44". Handles negatives.
+func formatCurrency(f float64) string {
+	neg := f < 0
+	if neg {
+		f = -f
 	}
-	return result
-}
-
-func filterByNameMulti(materials []models.Material, patterns []string) []models.Material {
-	var result []models.Material
-	for _, m := range materials {
-		for _, p := range patterns {
-			if strings.Contains(m.Name, p) {
-				result = append(result, m)
-				break
-			}
-		}
+	s := fmt.Sprintf("%.2f", f) // "31172.44"
+	intPart, frac := s, ""
+	if dot := strings.IndexByte(s, '.'); dot >= 0 {
+		intPart, frac = s[:dot], s[dot:]
 	}
-	return result
+	var b strings.Builder
+	n := len(intPart)
+	for i, c := range intPart {
+		if i > 0 && (n-i)%3 == 0 {
+			b.WriteByte(',')
+		}
+		b.WriteRune(c)
+	}
+	sign := ""
+	if neg {
+		sign = "-"
+	}
+	return sign + "$" + b.String() + frac
 }
 
 func parseFloat(s string) float64 {

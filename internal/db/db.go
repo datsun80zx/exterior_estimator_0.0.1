@@ -19,7 +19,6 @@ func New(dbPath string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("opening database: %w", err)
 	}
-
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("pinging database: %w", err)
 	}
@@ -28,36 +27,19 @@ func New(dbPath string) (*Store, error) {
 	if err := store.migrate(); err != nil {
 		return nil, fmt.Errorf("running migrations: %w", err)
 	}
-
 	return store, nil
 }
 
 func (s *Store) migrate() error {
 	migrations := []string{
-		`CREATE TABLE IF NOT EXISTS materials (
+		`CREATE TABLE IF NOT EXISTS rates (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			category TEXT NOT NULL CHECK(category IN ('roofing', 'siding', 'gutters')),
-			brand TEXT NOT NULL DEFAULT '',
-			product_line TEXT NOT NULL DEFAULT '',
-			name TEXT NOT NULL,
-			unit TEXT NOT NULL,
-			coverage_per_unit REAL NOT NULL DEFAULT 0,
-			cost_per_unit REAL NOT NULL DEFAULT 0,
-			price_per_unit REAL NOT NULL DEFAULT 0,
-			is_active INTEGER NOT NULL DEFAULT 1,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			key TEXT NOT NULL UNIQUE,
+			label TEXT NOT NULL,
+			grp TEXT NOT NULL,
+			unit TEXT NOT NULL DEFAULT '',
+			amount REAL NOT NULL DEFAULT 0,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-		)`,
-		`CREATE TABLE IF NOT EXISTS labor_rates (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			category TEXT NOT NULL CHECK(category IN ('roofing', 'siding', 'gutters')),
-			rate_type TEXT NOT NULL DEFAULT 'install',
-			description TEXT NOT NULL,
-			rate_per_sq REAL NOT NULL DEFAULT 0,
-			rate_per_lf REAL NOT NULL DEFAULT 0,
-			rate_per_sqft REAL NOT NULL DEFAULT 0,
-			is_active INTEGER NOT NULL DEFAULT 1,
-			UNIQUE(category, rate_type)
 		)`,
 		`CREATE TABLE IF NOT EXISTS saved_estimates (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,208 +50,138 @@ func (s *Store) migrate() error {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 	}
-
 	for _, m := range migrations {
 		if _, err := s.DB.Exec(m); err != nil {
 			return fmt.Errorf("migration: %w", err)
 		}
 	}
-
 	return nil
 }
 
-// --- Material Queries ---
+// --- Rate queries ---
 
-func (s *Store) GetMaterialsByCategory(category models.MaterialCategory) ([]models.Material, error) {
-	rows, err := s.DB.Query(`
-		SELECT id, category, brand, product_line, name, unit,
-		       coverage_per_unit, cost_per_unit, price_per_unit, is_active
-		FROM materials
-		WHERE category = ? AND is_active = 1
-		ORDER BY brand, product_line, name
-	`, string(category))
+func (s *Store) GetRates() ([]models.Rate, error) {
+	rows, err := s.DB.Query(`SELECT id, key, label, grp, unit, amount FROM rates ORDER BY grp, label`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var materials []models.Material
+	var out []models.Rate
 	for rows.Next() {
-		var m models.Material
-		if err := rows.Scan(&m.ID, &m.Category, &m.Brand, &m.ProductLine, &m.Name, &m.Unit,
-			&m.CoveragePerUnit, &m.CostPerUnit, &m.PricePerUnit, &m.IsActive); err != nil {
+		var r models.Rate
+		if err := rows.Scan(&r.ID, &r.Key, &r.Label, &r.Group, &r.Unit, &r.Amount); err != nil {
 			return nil, err
 		}
-		materials = append(materials, m)
+		out = append(out, r)
 	}
-	return materials, nil
+	return out, rows.Err()
 }
 
-func (s *Store) GetAllMaterials() ([]models.Material, error) {
-	rows, err := s.DB.Query(`
-		SELECT id, category, brand, product_line, name, unit,
-		       coverage_per_unit, cost_per_unit, price_per_unit, is_active
-		FROM materials
-		ORDER BY category, brand, product_line, name
-	`)
+// GetRatesByGroup returns rates bucketed by group, in a stable group order.
+func (s *Store) GetRatesByGroup() ([]struct {
+	Group string
+	Rates []models.Rate
+}, error) {
+	all, err := s.GetRates()
+	if err != nil {
+		return nil, err
+	}
+	order := []models.RateGroup{
+		models.GroupShingle, models.GroupHipRidge, models.GroupStarter,
+		models.GroupIceWater, models.GroupUnderlay, models.GroupMisc,
+		models.GroupLabor, models.GroupSetting,
+	}
+	byGroup := map[models.RateGroup][]models.Rate{}
+	for _, r := range all {
+		byGroup[r.Group] = append(byGroup[r.Group], r)
+	}
+	var out []struct {
+		Group string
+		Rates []models.Rate
+	}
+	for _, g := range order {
+		if rs := byGroup[g]; len(rs) > 0 {
+			out = append(out, struct {
+				Group string
+				Rates []models.Rate
+			}{Group: string(g), Rates: rs})
+		}
+	}
+	return out, nil
+}
+
+// RateMap returns key -> amount for the calc engine.
+func (s *Store) RateMap() (map[string]float64, error) {
+	rows, err := s.DB.Query(`SELECT key, amount FROM rates`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var materials []models.Material
+	m := map[string]float64{}
 	for rows.Next() {
-		var m models.Material
-		if err := rows.Scan(&m.ID, &m.Category, &m.Brand, &m.ProductLine, &m.Name, &m.Unit,
-			&m.CoveragePerUnit, &m.CostPerUnit, &m.PricePerUnit, &m.IsActive); err != nil {
+		var k string
+		var a float64
+		if err := rows.Scan(&k, &a); err != nil {
 			return nil, err
 		}
-		materials = append(materials, m)
+		m[k] = a
 	}
-	return materials, nil
+	return m, rows.Err()
 }
 
-func (s *Store) GetMaterial(id int64) (models.Material, error) {
-	var m models.Material
-	err := s.DB.QueryRow(`
-		SELECT id, category, brand, product_line, name, unit,
-		       coverage_per_unit, cost_per_unit, price_per_unit, is_active
-		FROM materials WHERE id = ?
-	`, id).Scan(&m.ID, &m.Category, &m.Brand, &m.ProductLine, &m.Name, &m.Unit,
-		&m.CoveragePerUnit, &m.CostPerUnit, &m.PricePerUnit, &m.IsActive)
-	return m, err
-}
-
-func (s *Store) UpsertMaterial(m models.Material) (int64, error) {
-	if m.ID > 0 {
-		_, err := s.DB.Exec(`
-			UPDATE materials SET
-				category = ?, brand = ?, product_line = ?, name = ?, unit = ?,
-				coverage_per_unit = ?, cost_per_unit = ?, price_per_unit = ?,
-				is_active = ?, updated_at = CURRENT_TIMESTAMP
-			WHERE id = ?
-		`, m.Category, m.Brand, m.ProductLine, m.Name, m.Unit,
-			m.CoveragePerUnit, m.CostPerUnit, m.PricePerUnit, m.IsActive, m.ID)
-		return m.ID, err
-	}
-
-	res, err := s.DB.Exec(`
-		INSERT INTO materials (category, brand, product_line, name, unit,
-		                       coverage_per_unit, cost_per_unit, price_per_unit, is_active)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, m.Category, m.Brand, m.ProductLine, m.Name, m.Unit,
-		m.CoveragePerUnit, m.CostPerUnit, m.PricePerUnit, m.IsActive)
+// RateLabel returns the display label for a rate key.
+func (s *Store) RateLabel(key string) (string, bool) {
+	var lbl string
+	err := s.DB.QueryRow(`SELECT label FROM rates WHERE key = ?`, key).Scan(&lbl)
 	if err != nil {
-		return 0, err
+		return "", false
 	}
-	return res.LastInsertId()
+	return lbl, true
 }
 
-func (s *Store) DeleteMaterial(id int64) error {
-	_, err := s.DB.Exec("UPDATE materials SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?", id)
+func (s *Store) GetRate(id int64) (models.Rate, error) {
+	var r models.Rate
+	err := s.DB.QueryRow(`SELECT id, key, label, grp, unit, amount FROM rates WHERE id = ?`, id).
+		Scan(&r.ID, &r.Key, &r.Label, &r.Group, &r.Unit, &r.Amount)
+	return r, err
+}
+
+// UpdateRateAmount updates just the dollar amount for an existing rate.
+func (s *Store) UpdateRateAmount(id int64, amount float64) error {
+	_, err := s.DB.Exec(`UPDATE rates SET amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, amount, id)
 	return err
 }
 
-// --- Shingle Brands (convenience) ---
-
-func (s *Store) GetShingleBrands() ([]string, error) {
-	rows, err := s.DB.Query(`
-		SELECT DISTINCT brand FROM materials
-		WHERE category = 'roofing' AND name LIKE '%Shingle%' AND is_active = 1
-		ORDER BY brand
-	`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var brands []string
-	for rows.Next() {
-		var b string
-		if err := rows.Scan(&b); err != nil {
-			return nil, err
-		}
-		brands = append(brands, b)
-	}
-	return brands, nil
-}
-
-func (s *Store) GetShinglesByBrand(brand string) ([]models.Material, error) {
-	rows, err := s.DB.Query(`
-		SELECT id, category, brand, product_line, name, unit,
-		       coverage_per_unit, cost_per_unit, price_per_unit, is_active
-		FROM materials
-		WHERE category = 'roofing' AND brand = ? AND name LIKE '%Shingle%' AND is_active = 1
-		ORDER BY product_line, name
-	`, brand)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var materials []models.Material
-	for rows.Next() {
-		var m models.Material
-		if err := rows.Scan(&m.ID, &m.Category, &m.Brand, &m.ProductLine, &m.Name, &m.Unit,
-			&m.CoveragePerUnit, &m.CostPerUnit, &m.PricePerUnit, &m.IsActive); err != nil {
-			return nil, err
-		}
-		materials = append(materials, m)
-	}
-	return materials, nil
-}
-
-// --- Labor Rates ---
-
-func (s *Store) GetLaborRate(category models.MaterialCategory, rateType string) (models.LaborRate, error) {
-	var lr models.LaborRate
-	err := s.DB.QueryRow(`
-		SELECT id, category, rate_type, description, rate_per_sq, rate_per_lf, rate_per_sqft
-		FROM labor_rates WHERE category = ? AND rate_type = ? AND is_active = 1
-	`, string(category), rateType).Scan(&lr.ID, &lr.Category, &lr.RateType, &lr.Description,
-		&lr.RatePerSq, &lr.RatePerLF, &lr.RatePerSqFt)
-	if err == sql.ErrNoRows {
-		return models.LaborRate{Category: category, RateType: rateType}, nil
-	}
-	return lr, err
-}
-
-func (s *Store) UpsertLaborRate(lr models.LaborRate) error {
-	if lr.ID > 0 {
-		_, err := s.DB.Exec(`
-			UPDATE labor_rates SET description = ?, rate_per_sq = ?, rate_per_lf = ?, rate_per_sqft = ?
-			WHERE id = ?
-		`, lr.Description, lr.RatePerSq, lr.RatePerLF, lr.RatePerSqFt, lr.ID)
-		return err
-	}
-	_, err := s.DB.Exec(`
-		INSERT INTO labor_rates (category, rate_type, description, rate_per_sq, rate_per_lf, rate_per_sqft)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, lr.Category, lr.RateType, lr.Description, lr.RatePerSq, lr.RatePerLF, lr.RatePerSqFt)
-	return err
-}
-
-// --- Saved Estimates ---
+// --- Saved estimates ---
 
 func (s *Store) SaveEstimate(customerName, customerAddress, projectType, estimateJSON string) (int64, error) {
 	res, err := s.DB.Exec(`
 		INSERT INTO saved_estimates (customer_name, customer_address, project_type, estimate_json)
-		VALUES (?, ?, ?, ?)
-	`, customerName, customerAddress, projectType, estimateJSON)
+		VALUES (?, ?, ?, ?)`,
+		customerName, customerAddress, projectType, estimateJSON)
 	if err != nil {
 		return 0, err
 	}
 	return res.LastInsertId()
 }
 
-// Seed checks if materials table is empty and seeds if so
+func (s *Store) GetEstimateJSON(id string) (string, error) {
+	var j string
+	err := s.DB.QueryRow(`SELECT estimate_json FROM saved_estimates WHERE id = ?`, id).Scan(&j)
+	return j, err
+}
+
+// --- Seed gate ---
+
 func (s *Store) SeedIfEmpty() error {
 	var count int
-	if err := s.DB.QueryRow("SELECT COUNT(*) FROM materials").Scan(&count); err != nil {
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM rates`).Scan(&count); err != nil {
 		return err
 	}
 	if count > 0 {
-		log.Println("Database already seeded, skipping")
+		log.Println("Price book already seeded, skipping")
 		return nil
 	}
 	return s.seed()

@@ -1,94 +1,205 @@
 {{define "estimate_result.html"}}
+<style>
+    .tier-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        background: var(--surface);
+    }
+
+    .tier-table th,
+    .tier-table td {
+        padding: 7px 12px;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .tier-table thead th {
+        background: #f3f4f6;
+        text-align: right;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: .5px;
+        color: var(--text-muted);
+        border-bottom: 2px solid var(--border);
+    }
+
+    .tier-table thead th:first-child {
+        text-align: left;
+    }
+
+    .tier-table td.line {
+        text-align: left;
+    }
+
+    .tier-table td.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .tier-table tr.fin td {
+        font-weight: 600;
+        background: #fafafa;
+    }
+
+    .tier-table tr.fin-total td {
+        font-size: 15px;
+        background: #1a1a2e;
+        color: #fff;
+    }
+
+    .tier-table tr.fin-total td.line {
+        color: #fff;
+    }
+
+    .tier-select {
+        display: flex;
+        gap: 18px;
+        flex-wrap: wrap;
+        margin: 16px 0;
+    }
+
+    .tier-select label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .order-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 10px;
+    }
+
+    .order-item {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 10px 14px;
+        background: var(--surface);
+    }
+
+    .order-item .oq {
+        font-size: 18px;
+        font-weight: 700;
+    }
+
+    .order-item .on {
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+</style>
+
 <div class="result-panel">
     <div class="result-header">
-        <h2>Estimate Results</h2>
+        <h2>Estimate — {{.Result.CustomerName}}</h2>
         <div class="result-meta">
-            <span>{{.Result.CustomerName}}</span>
             <span>{{.Result.CustomerAddress}}</span>
-            <span>{{.Result.TotalSquares}} squares | {{.Result.Pitch}} pitch | {{.Result.WasteFactorPct}}% waste</span>
+            <span>{{.Result.RoofSqFt}} sq ft</span>
         </div>
     </div>
 
-    {{/* ---- INTERNAL MATERIAL LIST ---- */}}
+    {{/* ---- TIER COMPARISON ---- */}}
     <div class="section">
-        <h3>Material List <span class="badge internal">Internal</span></h3>
-        <table class="material-table">
+        <h3>Tier Comparison <span class="badge internal">Internal</span></h3>
+        <table class="tier-table">
             <thead>
                 <tr>
-                    <th>Material</th>
-                    <th>Brand</th>
-                    <th class="num">Qty</th>
-                    <th>Unit</th>
-                    <th class="num">Cost/ea</th>
-                    <th class="num">Cost Total</th>
-                    <th class="num">Price/ea</th>
-                    <th class="num">Price Total</th>
-                    <th>Notes</th>
+                    <th>Line Item</th>
+                    {{range .Result.Tiers}}<th>{{.Name}}</th>{{end}}
                 </tr>
             </thead>
             <tbody>
-                {{range .Result.Materials}}
+                {{$tiers := .Result.Tiers}}
                 <tr>
-                    <td>{{.MaterialName}}</td>
-                    <td>{{.Brand}}</td>
-                    <td class="num">{{.Quantity}}</td>
-                    <td>{{.Unit}}</td>
-                    <td class="num">{{currency .CostEach}}</td>
-                    <td class="num">{{currency .CostTotal}}</td>
-                    <td class="num">{{currency .PriceEach}}</td>
-                    <td class="num">{{currency .PriceTotal}}</td>
-                    <td class="notes">{{.Notes}}</td>
+                    <td class="line"><em>Shingle</em></td>
+                    {{range $tiers}}<td class="num"><em>{{.ShingleName}}</em></td>{{end}}
+                </tr>
+                {{range $i, $line := (index $tiers 0).Lines}}
+                <tr>
+                    <td class="line">{{$line.Name}}</td>
+                    {{range $tiers}}<td class="num">{{currency (index .Lines $i).Amount}}</td>{{end}}
                 </tr>
                 {{end}}
+                <tr class="fin">
+                    <td class="line">Material Total</td>
+                    {{range $tiers}}<td class="num">{{currency .MaterialCost}}</td>{{end}}
+                </tr>
+                <tr class="fin">
+                    <td class="line">Labor</td>
+                    {{range $tiers}}<td class="num">{{currency .LaborCost}}</td>{{end}}
+                </tr>
+                <tr class="fin">
+                    <td class="line">Subtotal</td>
+                    {{range $tiers}}<td class="num">{{currency .Subtotal}}</td>{{end}}
+                </tr>
+                <tr class="fin">
+                    <td class="line">Business Overhead</td>
+                    {{range $tiers}}<td class="num">{{currency .Overhead}}</td>{{end}}
+                </tr>
+                <tr class="fin fin-total">
+                    <td class="line">Total Price</td>
+                    {{range $tiers}}<td class="num">{{currency .TotalPrice}}</td>{{end}}
+                </tr>
+                <tr class="fin">
+                    <td class="line">Price / sq ft</td>
+                    {{range $tiers}}<td class="num">{{currency .PricePerSqFt}}</td>{{end}}
+                </tr>
             </tbody>
         </table>
     </div>
 
-    {{/* ---- FINANCIALS ---- */}}
+    {{/* ---- ORDER LIST ---- */}}
     <div class="section">
-        <h3>Project Financials <span class="badge internal">Internal</span></h3>
-        <div class="financials-grid">
-            <div class="fin-item">
-                <span class="fin-label">Material Cost</span>
-                <span class="fin-value">{{currency .Result.TotalMaterialCost}}</span>
-            </div>
-            <div class="fin-item">
-                <span class="fin-label">Labor</span>
-                <span class="fin-value">{{currency .Result.LaborCost}}</span>
-            </div>
-            {{if gt .Result.TearOffCost 0.0}}
-            <div class="fin-item">
-                <span class="fin-label">Tear-Off</span>
-                <span class="fin-value">{{currency .Result.TearOffCost}}</span>
+        <h3>Supplier Order List <span class="badge internal">Internal</span></h3>
+        <div class="order-grid">
+            {{range .Result.OrderList}}
+            <div class="order-item">
+                <div class="oq">{{qty .Qty}} <span class="on">{{.Unit}}</span></div>
+                <div class="on">{{.Name}}</div>
             </div>
             {{end}}
-            <div class="fin-item fin-total">
-                <span class="fin-label">Total Cost</span>
-                <span class="fin-value">{{currency .Result.TotalProjectCost}}</span>
-            </div>
-            <div class="fin-item">
-                <span class="fin-label">Material Price (sell)</span>
-                <span class="fin-value">{{currency .Result.TotalMaterialPrice}}</span>
-            </div>
-            <div class="fin-item fin-total">
-                <span class="fin-label">Total Price</span>
-                <span class="fin-value">{{currency .Result.TotalProjectPrice}}</span>
-            </div>
-            <div class="fin-item fin-profit">
-                <span class="fin-label">Profit</span>
-                <span class="fin-value">{{currency .Result.Profit}} ({{.Result.MarginPct}}%)</span>
-            </div>
         </div>
     </div>
 
-    {{/* ---- ACTIONS ---- */}}
-    <div class="result-actions">
-        {{if .EstimateID}}
-        <a href="/roofing/proposal/{{.EstimateID}}" target="_blank" class="btn btn-primary">
-            View Customer Proposal →
-        </a>
-        {{end}}
-        <button onclick="window.print()" class="btn btn-secondary">Print Material List</button>
+    {{/* ---- COLORS ---- */}}
+    {{if or .Result.DripEdgeColor .Result.StepFlashingColor .Result.ApronFlashingColor .Result.ChimneyFlashingColor}}
+    <div class="section">
+        <h3>Color Selections</h3>
+        <div class="result-meta">
+            {{if .Result.DripEdgeColor}}<span>Drip Edge: {{.Result.DripEdgeColor}}</span>{{end}}
+            {{if .Result.StepFlashingColor}}<span>Step: {{.Result.StepFlashingColor}}</span>{{end}}
+            {{if .Result.ApronFlashingColor}}<span>Apron: {{.Result.ApronFlashingColor}}</span>{{end}}
+            {{if .Result.ChimneyFlashingColor}}<span>Chimney: {{.Result.ChimneyFlashingColor}}</span>{{end}}
+        </div>
     </div>
+    {{end}}
+
+    {{/* ---- BUILD PROPOSAL ---- */}}
+    {{if .EstimateID}}
+    <div class="section">
+        <h3>Customer Proposal</h3>
+        <p class="subtitle">Choose which tier(s) to show the customer, then open the proposal.</p>
+        <div class="tier-select">
+            {{range .Result.Tiers}}
+            <label><input type="checkbox" class="tier-pick" value="{{.Key}}"> {{.Name}}</label>
+            {{end}}
+        </div>
+        <div class="result-actions">
+            <button class="btn btn-primary" data-estimate-id="{{.EstimateID}}" onclick="openProposal(this)">View
+                Customer Proposal →</button>
+            <button onclick="window.print()" class="btn btn-secondary">Print Internal Sheet</button>
+        </div>
+    </div>
+    {{end}}
 </div>
+
+<script>
+    function openProposal(btn) {
+        var id = btn.getAttribute('data-estimate-id');
+        var picks = Array.from(document.querySelectorAll('.tier-pick:checked')).map(function (c) { return c.value; });
+        var url = '/roofing/proposal/' + id + (picks.length ? '?tiers=' + picks.join(',') : '');
+        window.open(url, '_blank');
+    }
+</script>
 {{end}}

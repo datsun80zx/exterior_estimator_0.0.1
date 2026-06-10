@@ -2,11 +2,12 @@
 {{define "content"}}
 <div class="estimate-form">
     <h1>Roofing Estimate</h1>
+    <p class="subtitle">Enter measured roof-surface area (already pitched). All four tiers calculate at once.</p>
 
     <form action="/roofing/calculate" method="POST" hx-post="/roofing/calculate" hx-target="#results"
         hx-swap="innerHTML">
 
-        {{/* ---- CUSTOMER INFO ---- */}}
+        {{/* ---- CUSTOMER ---- */}}
         <fieldset>
             <legend>Customer Information</legend>
             <div class="form-row">
@@ -31,163 +32,156 @@
             </div>
         </fieldset>
 
-        {{/* ---- MEASUREMENTS ---- */}}
+        {{/* ---- AREAS / LENGTHS ---- */}}
         <fieldset>
             <legend>Roof Measurements</legend>
             <div class="form-row">
                 <div class="form-group">
-                    <label for="total_area_sqft">Total Roof Area (sq ft)</label>
-                    <input type="number" id="total_area_sqft" name="total_area_sqft" step="1" min="0" required
-                        placeholder="e.g. 2400">
+                    <label for="roof_sqft">Roof Size (sq ft)</label>
+                    <input type="number" id="roof_sqft" name="roof_sqft" step="1" min="0" required
+                        placeholder="e.g. 4564">
                 </div>
                 <div class="form-group">
-                    <label for="pitch">Pitch</label>
-                    <select id="pitch" name="pitch" required>
-                        {{range pitches}}
-                        <option value="{{.}}" {{if eq . "6/12" }}selected{{end}}>{{.}}</option>
-                        {{end}}
-                    </select>
+                    <label for="eaves_lf">Eaves (LF)</label>
+                    <input type="number" id="eaves_lf" name="eaves_lf" step="0.5" min="0" value="0">
                 </div>
                 <div class="form-group">
-                    <label for="waste_factor_pct">Waste Factor %</label>
-                    <select id="waste_factor_pct" name="waste_factor_pct">
-                        <option value="10">10% (simple)</option>
-                        <option value="12">12%</option>
-                        <option value="15" selected>15% (standard)</option>
-                        <option value="18">18%</option>
-                        <option value="20">20% (complex/cut-up)</option>
-                    </select>
+                    <label for="rakes_lf">Rakes (LF)</label>
+                    <input type="number" id="rakes_lf" name="rakes_lf" step="0.5" min="0" value="0">
                 </div>
             </div>
-
             <div class="form-row">
                 <div class="form-group">
-                    <label for="eave_length_ft">Eave Length (LF)</label>
-                    <input type="number" id="eave_length_ft" name="eave_length_ft" step="0.5" min="0" value="0">
+                    <label for="valleys_lf">Valleys (LF)</label>
+                    <input type="number" id="valleys_lf" name="valleys_lf" step="0.5" min="0" value="0">
                 </div>
                 <div class="form-group">
-                    <label for="rake_length_ft">Rake Length (LF)</label>
-                    <input type="number" id="rake_length_ft" name="rake_length_ft" step="0.5" min="0" value="0">
+                    <label for="hips_lf">Hips (LF)</label>
+                    <input type="number" id="hips_lf" name="hips_lf" step="0.5" min="0" value="0">
                 </div>
                 <div class="form-group">
-                    <label for="ridge_length_ft">Ridge Length (LF)</label>
-                    <input type="number" id="ridge_length_ft" name="ridge_length_ft" step="0.5" min="0" value="0">
+                    <label for="ridge_lf">Ridge (LF)</label>
+                    <input type="number" id="ridge_lf" name="ridge_lf" step="0.5" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label for="intake_lf">Intake (LF)</label>
+                    <input type="number" id="intake_lf" name="intake_lf" step="0.5" min="0" value="0">
                 </div>
             </div>
-
             <div class="form-row">
                 <div class="form-group">
-                    <label for="hip_length_ft">Hip Length (LF)</label>
-                    <input type="number" id="hip_length_ft" name="hip_length_ft" step="0.5" min="0" value="0">
+                    <label for="addtl_tearoff_sf">Add'l Tear-off (sq ft)</label>
+                    <input type="number" id="addtl_tearoff_sf" name="addtl_tearoff_sf" step="1" min="0" value="0">
                 </div>
                 <div class="form-group">
-                    <label for="valley_length_ft">Valley Length (LF)</label>
-                    <input type="number" id="valley_length_ft" name="valley_length_ft" step="0.5" min="0" value="0">
-                </div>
-            </div>
-
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="num_pipe_boots">Pipe Boots</label>
-                    <input type="number" id="num_pipe_boots" name="num_pipe_boots" min="0" value="0">
+                    <label for="steep_slope_sf">Steep Slope &gt;8/12 (sq ft)</label>
+                    <input type="number" id="steep_slope_sf" name="steep_slope_sf" step="1" min="0" value="0">
                 </div>
                 <div class="form-group">
-                    <label for="num_exhaust_vents">Exhaust Vents</label>
-                    <input type="number" id="num_exhaust_vents" name="num_exhaust_vents" min="0" value="0">
-                </div>
-                <div class="form-group">
-                    <label for="layers_to_remove">Layers to Tear Off</label>
-                    <select id="layers_to_remove" name="layers_to_remove">
-                        <option value="0">None (overlay)</option>
-                        <option value="1" selected>1 layer</option>
-                        <option value="2">2 layers</option>
-                    </select>
+                    <label for="plank_deck_lf">Plank Decking (LF)</label>
+                    <input type="number" id="plank_deck_lf" name="plank_deck_lf" step="0.5" min="0" value="0">
                 </div>
             </div>
         </fieldset>
 
-        {{/* ---- MATERIAL SELECTIONS ---- */}}
+        {{/* ---- COUNTS / ADD-ONS ---- */}}
         <fieldset>
-            <legend>Material Selections</legend>
-
-            {{/* Shingle brand → product cascade */}}
+            <legend>Counts &amp; Add-ons</legend>
             <div class="form-row">
                 <div class="form-group">
-                    <label for="shingle_brand">Shingle Brand</label>
-                    <select id="shingle_brand" name="shingle_brand" hx-get="/htmx/shingles-by-brand"
-                        hx-target="#shingle_material_id" hx-include="[name='shingle_brand']" hx-trigger="change"
-                        hx-swap="innerHTML" hx-vals='js:{"brand": document.getElementById("shingle_brand").value}'>
-                        <option value="">-- Select Brand --</option>
-                        {{range .Brands}}
-                        <option value="{{.}}">{{.}}</option>
-                        {{end}}
-                    </select>
+                    <label for="chimney">Chimneys</label>
+                    <input type="number" id="chimney" name="chimney" min="0" value="0">
                 </div>
                 <div class="form-group">
-                    <label for="shingle_material_id">Shingle Product</label>
-                    <select id="shingle_material_id" name="shingle_material_id">
-                        <option value="">-- Select Brand First --</option>
-                    </select>
+                    <label for="pipe_boots">Pipe Boots</label>
+                    <input type="number" id="pipe_boots" name="pipe_boots" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label for="decking">Decking (OSB sheets)</label>
+                    <input type="number" id="decking" name="decking" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label for="dumpsters">Dumpsters</label>
+                    <input type="number" id="dumpsters" name="dumpsters" min="0" value="0">
                 </div>
             </div>
-
             <div class="form-row">
                 <div class="form-group">
-                    <label for="underlayment_material_id">Underlayment</label>
-                    <select id="underlayment_material_id" name="underlayment_material_id">
-                        <option value="">-- None --</option>
-                        {{range .Underlayments}}
-                        <option value="{{.ID}}">{{.Brand}} {{.Name}} ({{.CoveragePerUnit}} sqft/{{.Unit}})</option>
-                        {{end}}
-                    </select>
+                    <label for="solar_fans">Solar Fans</label>
+                    <input type="number" id="solar_fans" name="solar_fans" min="0" value="0">
                 </div>
                 <div class="form-group">
-                    <label for="ice_water_material_id">Ice & Water Shield</label>
-                    <select id="ice_water_material_id" name="ice_water_material_id">
-                        <option value="">-- None --</option>
-                        {{range .IceWater}}
-                        <option value="{{.ID}}">{{.Brand}} {{.Name}}</option>
-                        {{end}}
-                    </select>
+                    <label for="power_fans">Power Fans</label>
+                    <input type="number" id="power_fans" name="power_fans" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label for="broan_vents">Broan Vents</label>
+                    <input type="number" id="broan_vents" name="broan_vents" min="0" value="0">
                 </div>
             </div>
+        </fieldset>
 
+        {{/* ---- SKYLIGHTS ---- */}}
+        <fieldset>
+            <legend>Skylights</legend>
             <div class="form-row">
                 <div class="form-group">
-                    <label for="drip_edge_material_id">Drip Edge</label>
-                    <select id="drip_edge_material_id" name="drip_edge_material_id">
-                        <option value="">-- None --</option>
-                        {{range .DripEdge}}
-                        <option value="{{.ID}}">{{.Name}}</option>
-                        {{end}}
-                    </select>
+                    <label for="skylights">Quantity</label>
+                    <input type="number" id="skylights" name="skylights" min="0" value="0">
                 </div>
-                <div class="form-group">
-                    <label for="ridge_cap_material_id">Ridge Cap / Hip & Ridge</label>
-                    <select id="ridge_cap_material_id" name="ridge_cap_material_id">
-                        <option value="">-- None --</option>
-                        {{range .RidgeCap}}
-                        <option value="{{.ID}}">{{.Brand}} {{.Name}} ({{.CoveragePerUnit}} LF/{{.Unit}})</option>
+                <div class="form-group wide">
+                    <label for="skylight_pick">Type / Mount / Size</label>
+                    <select id="skylight_pick" name="skylight_pick" onchange="syncSkylight(this)">
+                        <option value="||">Flat default ($1,400 ea)</option>
+                        {{range skylightMatrix}}
+                        <option value="{{.Mount}}|{{.Type}}|{{.Size}}">{{.Label}} — ${{printf "%.0f" .Price}}</option>
                         {{end}}
                     </select>
+                    <small>Pick a specific unit to use matrix pricing instead of the flat rate.</small>
                 </div>
             </div>
+            <input type="hidden" id="skylight_mount" name="skylight_mount" value="">
+            <input type="hidden" id="skylight_type" name="skylight_type" value="">
+            <input type="hidden" id="skylight_size" name="skylight_size" value="">
+        </fieldset>
 
+        {{/* ---- COLORS ---- */}}
+        <fieldset>
+            <legend>Color Selections</legend>
             <div class="form-row">
                 <div class="form-group">
-                    <label for="starter_material_id">Starter Strip</label>
-                    <select id="starter_material_id" name="starter_material_id">
-                        <option value="">-- None --</option>
-                        {{range .Starter}}
-                        <option value="{{.ID}}">{{.Brand}} {{.Name}} ({{.CoveragePerUnit}} LF/{{.Unit}})</option>
-                        {{end}}
+                    <label for="drip_edge_color">Drip Edge</label>
+                    <select id="drip_edge_color" name="drip_edge_color">
+                        <option value="">—</option>
+                        {{range colors}}<option value="{{.}}">{{.}}</option>{{end}}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="step_flashing_color">Step Flashing</label>
+                    <select id="step_flashing_color" name="step_flashing_color">
+                        <option value="">—</option>
+                        {{range colors}}<option value="{{.}}">{{.}}</option>{{end}}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="apron_flashing_color">Apron Flashing</label>
+                    <select id="apron_flashing_color" name="apron_flashing_color">
+                        <option value="">—</option>
+                        {{range colors}}<option value="{{.}}">{{.}}</option>{{end}}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="chimney_flashing_color">Chimney Flashing</label>
+                    <select id="chimney_flashing_color" name="chimney_flashing_color">
+                        <option value="">—</option>
+                        {{range colors}}<option value="{{.}}">{{.}}</option>{{end}}
                     </select>
                 </div>
             </div>
         </fieldset>
 
         <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Calculate Estimate</button>
+            <button type="submit" class="btn btn-primary">Calculate All Tiers</button>
             <button type="reset" class="btn btn-secondary">Clear</button>
         </div>
     </form>
@@ -196,9 +190,11 @@
 </div>
 
 <script>
-    // Fix the HTMX brand selector to pass query param correctly
-    document.getElementById('shingle_brand').addEventListener('htmx:configRequest', function (e) {
-        e.detail.path = '/htmx/shingles-by-brand?brand=' + encodeURIComponent(this.value);
-    });
+    function syncSkylight(sel) {
+        var parts = sel.value.split('|');
+        document.getElementById('skylight_mount').value = parts[0] || '';
+        document.getElementById('skylight_type').value = parts[1] || '';
+        document.getElementById('skylight_size').value = parts[2] || '';
+    }
 </script>
-{{end}}
+{{end}}{end}}

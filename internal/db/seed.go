@@ -1,100 +1,74 @@
 package db
 
-import "log"
+import (
+	"log"
 
+	"github.com/datsun80zx/exterior_estimator_0.0.1/internal/models"
+)
+
+// seed loads the price book with the exact rates from the May Customer Price
+// Book (Master Copy, column B).
 func (s *Store) seed() error {
-	log.Println("Seeding database with default materials...")
+	log.Println("Seeding price book with rates from the Customer Price Book...")
 
-	materials := []struct {
-		category, brand, productLine, name, unit   string
-		coveragePerUnit, costPerUnit, pricePerUnit float64
-	}{
-		// =============================================
-		// SHINGLES - Owens Corning
-		// =============================================
-		// Coverage: 33.3 sq ft per bundle (3 bundles = 1 square)
-		{"roofing", "Owens Corning", "Duration", "Duration Shingles", "bundle", 33.3, 0, 0},
-		{"roofing", "Owens Corning", "Duration STORM", "Duration STORM Shingles", "bundle", 33.3, 0, 0},
-		{"roofing", "Owens Corning", "Duration FLEX", "Duration FLEX Shingles", "bundle", 33.3, 0, 0},
-		{"roofing", "Owens Corning", "TruDefinition Duration", "TruDefinition Duration Shingles", "bundle", 33.3, 0, 0},
-		{"roofing", "Owens Corning", "Oakridge", "Oakridge Shingles", "bundle", 33.3, 0, 0},
+	type seedRate struct {
+		key, label string
+		group      models.RateGroup
+		unit       string
+		amount     float64
+	}
 
-		// =============================================
-		// SHINGLES - GAF
-		// =============================================
-		{"roofing", "GAF", "Timberline HDZ", "Timberline HDZ Shingles", "bundle", 33.3, 0, 0},
-		{"roofing", "GAF", "Timberline AS II", "Timberline AS II Shingles", "bundle", 33.3, 0, 0},
-		{"roofing", "GAF", "Timberline NS", "Timberline NS Shingles", "bundle", 33.3, 0, 0},
-		{"roofing", "GAF", "Royal Sovereign", "Royal Sovereign 3-Tab Shingles", "bundle", 33.3, 0, 0},
+	rates := []seedRate{
+		// Shingles ($/sqft)
+		{models.KeyShingleOakridge, "OC Oakridge Architectural", models.GroupShingle, "/sqft", 1.21},
+		{models.KeyShingleDuration, "OC TruDefinition Duration", models.GroupShingle, "/sqft", 1.40},
+		{models.KeyShingleDesigner, "OC TruDefinition Duration Designer", models.GroupShingle, "/sqft", 1.40},
+		{models.KeyShingleFlex, "OC TruDefinition Duration Flex (Class 4)", models.GroupShingle, "/sqft", 1.60},
+		{models.KeyShingleBrava, "Brava Faux Slate (15 bundles/sq)", models.GroupShingle, "/sqft", 8.05},
+		{models.KeyShingleGrandManor, "CertainTeed Grand Manor Lux", models.GroupShingle, "/sqft", 3.95},
 
-		// =============================================
-		// SHINGLES - CertainTeed
-		// =============================================
-		{"roofing", "CertainTeed", "Landmark", "Landmark Shingles", "bundle", 33.3, 0, 0},
-		{"roofing", "CertainTeed", "Landmark PRO", "Landmark PRO Shingles", "bundle", 33.3, 0, 0},
-		{"roofing", "CertainTeed", "NorthGate", "NorthGate SBS Shingles", "bundle", 33.3, 0, 0},
+		// Hip & Ridge ($/lf)
+		{models.KeyHRProEdge, "OC ProEdge Hip & Ridge", models.GroupHipRidge, "/lf", 2.40},
+		{models.KeyHRProEdgeFlex, "OC ProEdge Hip & Ridge Flex", models.GroupHipRidge, "/lf", 3.06},
+		{models.KeyHRBrava, "Brava Faux Slate Hip & Ridge", models.GroupHipRidge, "/lf", 9.04},
+		{models.KeyHRGrandManor, "CertainTeed Grand Manor Hip & Ridge", models.GroupHipRidge, "/lf", 4.85},
 
-		// =============================================
-		// UNDERLAYMENT
-		// =============================================
-		// Synthetic underlayment - typical roll covers 1000 sq ft
-		{"roofing", "Owens Corning", "ProArmor", "ProArmor Synthetic Underlayment", "roll", 1000, 0, 0},
-		{"roofing", "GAF", "FeltBuster", "FeltBuster Synthetic Underlayment", "roll", 1000, 0, 0},
-		{"roofing", "Generic", "", "15# Felt Underlayment", "roll", 400, 0, 0},
-		{"roofing", "Generic", "", "30# Felt Underlayment", "roll", 200, 0, 0},
+		// Starter ($/lf)
+		{models.KeyStarter, "Starter Strip Plus", models.GroupStarter, "/lf", 0.65},
 
-		// =============================================
-		// ICE & WATER SHIELD
-		// =============================================
-		// Typical roll: 2 sq (200 sq ft) - 36" x 66.7'
-		{"roofing", "Owens Corning", "WeatherLock", "WeatherLock G Ice & Water", "roll", 200, 0, 0},
-		{"roofing", "GAF", "StormGuard", "StormGuard Ice & Water", "roll", 200, 0, 0},
-		{"roofing", "Grace", "Ice & Water Shield", "Grace Ice & Water Shield", "roll", 200, 0, 0},
+		// Ice & Water ($/lf)
+		{models.KeyIWWeatherlockG, "Weatherlock G", models.GroupIceWater, "/lf", 1.60},
+		{models.KeyIWWeatherlockMat, "Weatherlock Mat", models.GroupIceWater, "/lf", 1.60},
+		{models.KeyIWWeatherlockFlex, "WeatherLock Flex", models.GroupIceWater, "/lf", 2.57},
 
-		// =============================================
-		// DRIP EDGE
-		// =============================================
-		// 10 ft pieces
-		{"roofing", "Generic", "", "Drip Edge - Aluminum (White)", "piece", 10, 0, 0},
-		{"roofing", "Generic", "", "Drip Edge - Aluminum (Brown)", "piece", 10, 0, 0},
-		{"roofing", "Generic", "", "Drip Edge - Aluminum (Black)", "piece", 10, 0, 0},
+		// Underlayment ($/sqft)
+		{models.KeyUnderProArmor, "OC ProArmor Synthetic Underlayment", models.GroupUnderlay, "/sqft", 0.15},
+		{models.KeyUnderDeckDefense, "OC DeckDefense", models.GroupUnderlay, "/sqft", 0.20},
+		{models.KeyUnderRhinoRoof, "OC RhinoRoof U20", models.GroupUnderlay, "/sqft", 0.08},
 
-		// =============================================
-		// RIDGE CAP
-		// =============================================
-		// OC hip & ridge covers ~31.7 linear ft per bundle
-		{"roofing", "Owens Corning", "DecoRidge", "DecoRidge Hip & Ridge", "bundle", 20, 0, 0},
-		{"roofing", "Owens Corning", "", "ProEdge Hip & Ridge", "bundle", 31, 0, 0},
-		{"roofing", "GAF", "TimberTex", "TimberTex Hip & Ridge", "bundle", 20, 0, 0},
-		{"roofing", "GAF", "Seal-A-Ridge", "Seal-A-Ridge Hip & Ridge", "bundle", 25, 0, 0},
-		{"roofing", "CertainTeed", "", "Shadow Ridge Hip & Ridge", "bundle", 31.7, 0, 0},
+		// Misc
+		{models.KeyPipeBoot, "Pipe Boot", models.GroupMisc, "/ea", 11.60},
+		{models.KeyNails, "Nails", models.GroupMisc, "/sqft", 0.04},
+		{models.KeyFlashing, "Flashing", models.GroupMisc, "/ea", 100},
+		{models.KeyDripEdge, "Drip Edge", models.GroupMisc, "/lf", 0.80},
+		{models.KeyRidgeVent, "Ridge Vent", models.GroupMisc, "/lf", 4.75},
+		{models.KeyOSB, "OSB", models.GroupMisc, "/sheet", 85},
+		{models.KeyWarranty, "Warranty", models.GroupMisc, "/sqft", 0.14},
+		{models.KeyPlankDeck, "Plank Deck", models.GroupMisc, "/lf", 8.85},
+		{models.KeySolarFan, "Solar Fan", models.GroupMisc, "/ea", 542.99},
+		{models.KeyPowerFan, "Power Fan", models.GroupMisc, "/ea", 187.56},
+		{models.KeyBroanVent, "Broan Vent", models.GroupMisc, "/ea", 48.53},
+		{models.KeyDumpster, "Dumpster (per 15 sq)", models.GroupMisc, "/ea", 500},
+		{models.KeySkylight, "Skylight (flat default)", models.GroupMisc, "/ea", 1400},
 
-		// =============================================
-		// STARTER STRIP
-		// =============================================
-		// Starter strip ~ 105 linear ft per bundle (varies)
-		{"roofing", "Owens Corning", "Starter Strip Plus", "Starter Strip Shingles", "bundle", 105, 0, 0},
-		{"roofing", "GAF", "Pro-Start", "Pro-Start Starter Strip", "bundle", 120, 0, 0},
-		{"roofing", "CertainTeed", "", "SwiftStart Starter Shingles", "bundle", 117, 0, 0},
+		// Labor ($/sqft)
+		{models.KeyLabor, "Labor", models.GroupLabor, "/sqft", 3.00},
+		{models.KeyLaborSpecialty, "Labor (Specialty)", models.GroupLabor, "/sqft", 4.50},
+		{models.KeyAddtlTearoff, "Additional Tear-off", models.GroupLabor, "/sqft", 0.90},
+		{models.KeySteepSlope, "Steep Slope (>8/12)", models.GroupLabor, "/sqft", 0.25},
 
-		// =============================================
-		// PIPE BOOTS & VENTS
-		// =============================================
-		{"roofing", "Generic", "", "Pipe Boot - 1.5\" to 3\"", "piece", 1, 0, 0},
-		{"roofing", "Generic", "", "Pipe Boot - 3\" to 4\"", "piece", 1, 0, 0},
-		{"roofing", "Generic", "", "Exhaust Vent (box vent)", "piece", 1, 0, 0},
-		{"roofing", "Owens Corning", "", "VentSure Ridge Vent (4ft)", "piece", 4, 0, 0},
-		{"roofing", "Owens Corning", "Ridge Prowler 30", "Ridge Prowler", "roll", 30, 0, 0},
-
-		// =============================================
-		// NAILS & MISC 1 box of nails covers 15 SQ
-		// =============================================
-		{"roofing", "Generic", "", "1-1/4\" Coil Roofing Nails", "box", 15, 0, 0},
-		{"roofing", "Generic", "", "Roofing Caulk / Sealant", "tube", 1, 0, 0},
-
-		// =============================================
-		// LABOR RATES (seeded separately below)
-		// =============================================
+		// Settings
+		{models.KeyBusinessMargin, "Business Margin (price divisor)", models.GroupSetting, "factor", 0.85},
 	}
 
 	tx, err := s.DB.Begin()
@@ -103,45 +77,14 @@ func (s *Store) seed() error {
 	}
 	defer tx.Rollback()
 
-	stmt, err := tx.Prepare(`
-		INSERT INTO materials (category, brand, product_line, name, unit,
-		                       coverage_per_unit, cost_per_unit, price_per_unit, is_active)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
-	`)
+	stmt, err := tx.Prepare(`INSERT INTO rates (key, label, grp, unit, amount) VALUES (?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
-	for _, m := range materials {
-		if _, err := stmt.Exec(m.category, m.brand, m.productLine, m.name, m.unit,
-			m.coveragePerUnit, m.costPerUnit, m.pricePerUnit); err != nil {
-			return err
-		}
-	}
-
-	// Seed default labor rates (placeholder - you'll set these)
-	laborRates := []struct {
-		category, description             string
-		ratePerSq, ratePerLF, ratePerSqFt float64
-	}{
-		{"roofing", "install", 300, 0, 0}, // $300/square labor
-		{"roofing", "Tear-off (per layer per square)", 90, 0, 0},
-		{"gutters", "Standard gutter install", 0, 6, 0},   // $6/LF
-		{"siding", "Standard siding install", 0, 0, 3.50}, // $3.50/sqft
-	}
-
-	lrStmt, err := tx.Prepare(`
-		INSERT INTO labor_rates (category, description, rate_per_sq, rate_per_lf, rate_per_sqft)
-		VALUES (?, ?, ?, ?, ?)
-	`)
-	if err != nil {
-		return err
-	}
-	defer lrStmt.Close()
-
-	for _, lr := range laborRates {
-		if _, err := lrStmt.Exec(lr.category, lr.description, lr.ratePerSq, lr.ratePerLF, lr.ratePerSqFt); err != nil {
+	for _, r := range rates {
+		if _, err := stmt.Exec(r.key, r.label, string(r.group), r.unit, r.amount); err != nil {
 			return err
 		}
 	}
@@ -149,7 +92,6 @@ func (s *Store) seed() error {
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-
-	log.Println("Database seeded successfully")
+	log.Println("Price book seeded successfully")
 	return nil
 }
